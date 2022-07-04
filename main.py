@@ -53,10 +53,10 @@ default_input_stats = {
 }
 
 stat_input = dbc.Col([
-    html.H5('Seventy Upgrades Input'),
+    html.H5('Eighty Upgrades Input'),
     dcc.Markdown(
-        'This simulator uses Seventy Upgrades as its gear selection UI. In '
-        'order to use it, create a Seventy Upgrades profile for your character'
+        'This simulator uses Eighty Upgrades as its gear selection UI. In '
+        'order to use it, create a Eighty Upgrades profile for your character'
         ' and download the gear set using the "Export" button at the top right'
         ' of the character sheet. Make sure that "Cat Form" is selected in the'
         ' export window, and that "Talents" are checked (and set up in your '
@@ -65,9 +65,9 @@ stat_input = dbc.Col([
     ),
     dcc.Markdown(
         'Consumables and party/raid buffs can be specified either in the '
-        'Seventy Upgrades "Buffs" tab, or in the "Consumables" and "Raid '
+        'Eighty Upgrades "Buffs" tab, or in the "Consumables" and "Raid '
         'Buffs " sections in the sim. If the "Buffs" option is checked in the '
-        'Seventy Upgrades export window, then the corresponding sections in '
+        'Eighty Upgrades export window, then the corresponding sections in '
         'the sim input will be ignored.',
         style={'width': 300},
     ),
@@ -114,7 +114,7 @@ stat_input = dbc.Col([
             {'label': 'Relentless Earthstorm Diamond', 'value': 'meta'},
             {'label': 'Band of the Eternal Champion', 'value': 'exalted_ring'},
         ],
-        value=['t6_2p', 't6_4p', 'wolfshead', 'exalted_ring'],
+        value=['t6_2p', 't6_4p', 'meta'],
         id='bonuses'
     ),
     ], width='auto', style={'marginBottom': '2.5%', 'marginLeft': '2.5%'})
@@ -125,11 +125,9 @@ buffs_1 = dbc.Col(
          options=[{'label': 'Elixir of Major Agility', 'value': 'agi_elixir'},
                   {'label': 'Elixir of Draenic Wisdom', 'value': 'draenic'},
                   {'label': 'Warp Burger / Grilled Mudfish', 'value': 'food'},
-                  {'label': 'Scroll of Agility V', 'value': 'scroll_agi'},
-                  {'label': 'Scroll of Strength V', 'value': 'scroll_str'},
                   {'label': 'Adamantite Weightstone', 'value': 'weightstone'}],
          value=[
-             'agi_elixir', 'food', 'scroll_agi', 'scroll_str', 'weightstone',
+             'agi_elixir', 'food', 'weightstone',
          ],
          id='consumables'
      ),
@@ -137,7 +135,10 @@ buffs_1 = dbc.Col(
      html.H5('Raid Buffs'),
      dbc.Checklist(
          options=[{'label': 'Blessing of Kings', 'value': 'kings'},
-                  {'label': 'Blessing of Might', 'value': 'might'},
+                  {
+                      'label': 'Blessing of Might / Battle Shout',
+                      'value': 'might'
+                  },
                   {'label': 'Blessing of Wisdom', 'value': 'wisdom'},
                   {'label': 'Mark of the Wild', 'value': 'motw'},
                   {'label': 'Trueshot Aura', 'value': 'trueshot_aura'},
@@ -146,19 +147,12 @@ buffs_1 = dbc.Col(
                   {'label': 'Grace of Air Totem', 'value': 'agi_totem'},
                   {'label': 'Unleashed Rage', 'value': 'unleashed_rage'},
                   {'label': 'Arcane Intellect', 'value': 'ai'},
-                  {'label': 'Prayer of Spirit', 'value': 'spirit'},
-                  {'label': 'Battle Shout', 'value': 'bshout'}],
+                  {'label': 'Prayer of Spirit', 'value': 'spirit'}],
          value=[
              'kings', 'might', 'motw', 'str_totem', 'agi_totem',
-             'unleashed_rage', 'ai', 'bshout'
+             'unleashed_rage', 'ai'
          ],
          id='raid_buffs'
-     ),
-     dbc.Checklist(
-         options=[{'label': 'Commanding Presence', 'value': 'talent'},
-                  {'label': "Solarian's Sapphire", 'value': 'trinket'}],
-         value=['talent'], id='bshout_options',
-         style={'marginLeft': '10%'},
      ),
      html.Br()], id='buff_section', is_open=True),
      html.H5('Other Buffs'),
@@ -696,7 +690,7 @@ iteration_input = dbc.Col([
 
 input_layout = html.Div(children=[
     html.H1(
-        children='WoW Classic TBC Feral Cat Simulator',
+        children='WoW Classic WotLK Pre-Patch Feral Cat Simulator',
         style={'textAlign': 'center'}
     ),
     dbc.Row(
@@ -1158,7 +1152,7 @@ def create_player(
     )
     encounter_crit = (
         buffed_crit + 3 * ('jotc' in stat_debuffs)
-        + (28 * ('be_chain' in other_buffs) + 20 * bool(raven_idol)) / 22.1
+        + (28 * ('be_chain' in other_buffs) + 40 * bool(raven_idol)) / 22.1
     )
     encounter_hit = buffed_hit + 3 * ('imp_ff' in stat_debuffs)
     encounter_mp5 = buffed_mp5 + 50 * ('mana_spring_totem' in other_buffs)
@@ -1197,7 +1191,7 @@ def create_player(
 def apply_buffs(
         unbuffed_ap, unbuffed_strength, unbuffed_agi, unbuffed_hit,
         unbuffed_crit, unbuffed_mana, unbuffed_int, unbuffed_spirit,
-        unbuffed_mp5, weapon_damage, raid_buffs, consumables, bshout_options
+        unbuffed_mp5, weapon_damage, raid_buffs, consumables
 ):
     """Takes in unbuffed player stats, and turns them into buffed stats based
     on specified consumables and raid buffs. This function should only be
@@ -1215,12 +1209,10 @@ def apply_buffs(
 
     buffed_strength = stat_multiplier * (unbuffed_strength + 1.03 * (
         added_stats + 98 * ('str_totem' in raid_buffs)
-        + 20 * ('scroll_str' in consumables)
     ))
     buffed_agi = stat_multiplier * (unbuffed_agi + 1.03 * (
         added_stats + 88 * ('agi_totem' in raid_buffs)
-        + 35 * ('agi_elixir' in consumables) + 20 * ('food' in consumables)
-        + 20 * ('scroll_agi' in consumables)
+        + 30 * ('agi_elixir' in consumables) + 20 * ('food' in consumables)
     ))
     buffed_int = stat_multiplier * (unbuffed_int + 1.2 * 1.03 * (
         added_stats + 40 * ('ai' in raid_buffs)
@@ -1233,17 +1225,13 @@ def apply_buffs(
 
     # Now augment secondary stats
     ap_mod = 1.1 * (1 + 0.1 * ('unleashed_rage' in raid_buffs))
-    bshout_ap = (
-        ('bshout' in raid_buffs) * (305 + 70 * ('trinket' in bshout_options))
-        * (1. + 0.25 * ('talent' in bshout_options))
-    )
     buffed_attack_power = ap_mod * (
         raw_ap_unbuffed + 2 * buffed_strength + buffed_agi
-        + 264 * ('might' in raid_buffs) + bshout_ap
+        + 306 * 1.25 * ('might' in raid_buffs)
         + 125 * ('trueshot_aura' in raid_buffs)
     )
     added_crit_rating = (
-        20 * ('agi_elixir' in consumables)
+        12 * ('agi_elixir' in consumables)
         + 14 * ('weightstone' in consumables)
     )
     buffed_crit = (
@@ -1473,7 +1461,6 @@ def plot_new_trajectory(sim, show_whites):
     Input('upload-data', 'contents'),
     Input('consumables', 'value'),
     Input('raid_buffs', 'value'),
-    Input('bshout_options', 'value'),
     Input('num_mcp', 'value'),
     Input('other_buffs', 'value'),
     Input('raven_idol', 'value'),
@@ -1520,7 +1507,7 @@ def plot_new_trajectory(sim, show_whites):
     State('epic_gems', 'checked'),
     State('show_whites', 'checked'))
 def compute(
-        json_file, consumables, raid_buffs, bshout_options, num_mcp,
+        json_file, consumables, raid_buffs, num_mcp,
         other_buffs, raven_idol, stat_debuffs, surv_agi, trinket_1, trinket_2,
         run_clicks, weight_clicks, graph_clicks, potion, ferocious_inspiration,
         bonuses, feral_aggression, savage_fury, naturalist,
@@ -1613,7 +1600,6 @@ def compute(
             input_stats['mana'], input_stats['intellect'],
             input_stats['spirit'], input_stats.get('mp5', 0),
             input_stats.get('weaponDamage', 0), raid_buffs, consumables,
-            bshout_options
         ))
 
     # Determine whether Unleashed Rage and/or Blessing of Kings are present, as
