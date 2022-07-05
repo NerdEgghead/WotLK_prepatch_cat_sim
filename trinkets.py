@@ -1,7 +1,7 @@
 """Code for modeling non-static trinkets in feral DPS simulation."""
 
 import numpy as np
-import tbc_cat_sim as ccs
+import prepatch_cat_sim as ccs
 
 
 class Trinket():

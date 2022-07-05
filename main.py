@@ -11,7 +11,7 @@ import plotly.graph_objects as go
 import numpy as np
 from dash.dependencies import Input, Output, State
 import dash_bootstrap_components as dbc
-import tbc_cat_sim as ccs
+import prepatch_cat_sim as ccs
 import multiprocessing
 import trinkets
 import copy
@@ -24,32 +24,35 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 server = app.server
 
 default_input_stats = {
-        "agility": 656,
-        "armor": 5218,
-        "armorPen": 441,
-        "attackPower": 3304,
-        "crit": 42.14,
-        "critRating": 87,
-        "critReduction": 3,
+        "agility": 785,
+        "armor": 4531,
+        "armorPen": 27.92,
+        "armorPenRating": 188,
+        "attackPower": 4320,
+        "crit": 45.17,
+        "critRating": 156,
+        "critReduction": 6,
         "defense": 350,
-        "dodge": 47.74,
-        "expertise": 6,
-        "expertiseRating": 25,
-        "feralAttackPower": 973,
-        "health": 8854,
-        "hit": 4.06,
-        "hitRating": 64,
-        "intellect": 242,
+        "dodge": 44.74,
+        "expertise": 16,
+        "expertiseRating": 27,
+        "feralAttackPower": 1195,
+        "haste": 4.19,
+        "hasteRating": 66,
+        "health": 9854,
+        "hit": 8.94,
+        "hitRating": 141,
+        "intellect": 252,
         "mainHandSpeed": 3,
-        "mana": 5720,
+        "mana": 5870,
         "natureResist": 10,
         "parry": 5,
-        "resilience": 0.48,
-        "resilienceRating": 19,
-        "spellCrit": 4.88,
-        "spirit": 161,
-        "stamina": 542,
-        "strength": 314
+        "spellCrit": 12.07,
+        "spellHaste": 4.19,
+        "spellHit": 11.18,
+        "spirit": 158,
+        "stamina": 642,
+        "strength": 263
 }
 
 stat_input = dbc.Col([
@@ -60,7 +63,8 @@ stat_input = dbc.Col([
         ' and download the gear set using the "Export" button at the top right'
         ' of the character sheet. Make sure that "Cat Form" is selected in the'
         ' export window, and that "Talents" are checked (and set up in your '
-        'character sheet).',
+        'character sheet). Also make sure that trinket and Idol slots are left'
+        ' empty prior to exporting, as these will be selected in the sim UI.',
         style={'width': 300},
     ),
     dcc.Markdown(
@@ -139,18 +143,25 @@ buffs_1 = dbc.Col(
                       'label': 'Blessing of Might / Battle Shout',
                       'value': 'might'
                   },
-                  {'label': 'Blessing of Wisdom', 'value': 'wisdom'},
+                  {
+                      'label': 'Blessing of Wisdom / Mana Spring Totem',
+                      'value': 'wisdom'
+                  },
                   {'label': 'Mark of the Wild', 'value': 'motw'},
-                  {'label': 'Trueshot Aura', 'value': 'trueshot_aura'},
                   {'label': 'Heroic Presence', 'value': 'heroic_presence'},
-                  {'label': 'Strength of Earth Totem', 'value': 'str_totem'},
-                  {'label': 'Grace of Air Totem', 'value': 'agi_totem'},
-                  {'label': 'Unleashed Rage', 'value': 'unleashed_rage'},
+                  {
+                      'label': 'Strength of Earth Totem / Horn of Winter',
+                      'value': 'str_totem'
+                  },
+                  {
+                      'label': "Unleashed Rage / Trueshot Aura / Abomination's Might",
+                      'value': 'unleashed_rage'
+                  },
                   {'label': 'Arcane Intellect', 'value': 'ai'},
                   {'label': 'Prayer of Spirit', 'value': 'spirit'}],
          value=[
-             'kings', 'might', 'motw', 'str_totem', 'agi_totem',
-             'unleashed_rage', 'ai'
+             'kings', 'might', 'wisdom', 'motw', 'str_totem', 'unleashed_rage',
+             'ai'
          ],
          id='raid_buffs'
      ),
@@ -158,26 +169,21 @@ buffs_1 = dbc.Col(
      html.H5('Other Buffs'),
      dbc.Checklist(
          options=[
-             {'label': 'Omen of Clarity', 'value': 'omen'},
-             {'label': 'Bogling Root', 'value': 'bogling_root'},
-             {'label': 'Consecrated Sharpening Stone', 'value': 'consec'},
-             {'label': 'Improved Sanctity Aura', 'value': 'sanc_aura'},
-             {'label': 'Mana Spring Totem', 'value': 'mana_spring_totem'},
+             {
+                 'label': 'Sanctified Retribution / Ferocious Inspiration / Arcane Empowerment',
+                 'value': 'sanc_aura'
+             },
              {'label': 'Braided Eternium Chain', 'value': 'be_chain'},
+             {
+                 'label': 'Improved Windfury Totem / Improved Icy Talons',
+                 'value': 'major_haste'
+             },
+             {
+                 'label': 'Improved Moonkin Form / Swift Retribution',
+                 'value': 'minor_haste'
+             },
          ],
-         value=['omen', 'sanc_aura', 'mana_spring_totem'], id='other_buffs'
-     ),
-     dbc.InputGroup(
-         [
-             dbc.InputGroupAddon(
-                 'Ferocious Inspiration stacks:', addon_type='prepend'
-             ),
-             dbc.Input(
-                 value=0, type='number', id='ferocious_inspiration', min=0,
-                 max=4
-             )
-         ],
-         style={'width': '100%', 'marginTop': '2%'}, size='sm'
+         value=['sanc_aura', 'major_haste', 'minor_haste'], id='other_buffs'
      )],
     width='auto', style={'marginBottom': '2.5%', 'marginLeft': '2.5%'}
 )
@@ -192,7 +198,7 @@ encounter_details = dbc.Col(
              ),
              dbc.InputGroupAddon('seconds', addon_type='append')
          ],
-         style={'width': '50%'}
+         style={'width': '75%'}
      ),
      dbc.InputGroup(
          [
@@ -207,66 +213,38 @@ encounter_details = dbc.Col(
          options=[
              {'label': 'Gift of Arthas', 'value': 'gift_of_arthas'},
              {'label': 'Sunder Armor', 'value': 'sunder'},
-             {'label': 'Improved Expose Armor', 'value': 'imp_EA'},
-             {'label': 'Curse of Recklessness', 'value': 'CoR'},
              {'label': 'Faerie Fire', 'value': 'faerie_fire'},
-             {'label': 'Annihilator', 'value': 'annihilator'},
-             {'label': 'Blood Frenzy', 'value': 'blood_frenzy'},
+             {
+                 'label': 'Blood Frenzy / Savage Combat',
+                 'value': 'blood_frenzy'
+             },
          ],
-         value=[
-             'gift_of_arthas', 'sunder', 'imp_EA', 'CoR', 'faerie_fire',
-             'blood_frenzy'
-         ],
+         value=['gift_of_arthas', 'sunder', 'faerie_fire', 'blood_frenzy'],
          id='boss_debuffs'
      ),
      html.Br(),
      html.H5('Stat Debuffs'),
      dbc.Checklist(
          options=[
-             {'label': 'Improved Faerie Fire', 'value': 'imp_ff'},
-             {'label': "Improved Hunter's Mark", 'value': 'hunters_mark'},
-             {'label': 'Improved Judgment of the Crusader', 'value': 'jotc'},
+             {
+                 'label': 'Heart of the Crusader / Master Poisoner',
+                 'value': 'jotc'
+             },
              {'label': 'Judgment of Wisdom', 'value': 'jow'},
-             {'label': 'Expose weakness', 'value': 'expose'},
          ],
-         value=['imp_ff', 'hunters_mark', 'jotc', 'jow', 'expose'],
+         value=['jotc', 'jow'],
          id='stat_debuffs',
-     ),
-     dbc.InputGroup(
-         [
-             dbc.InputGroupAddon(
-                 'Survival hunter Agility:', addon_type='prepend'
-             ),
-             dbc.Input(value=1000, type='number', id='surv_agi',),
-         ],
-         size='sm',
-         style={'width': '40%', 'marginTop': '1%', 'marginLeft': '5%'},
      ),
      html.Br(),
      html.H5('Cooldowns'),
-     dbc.Row([
-         dbc.Col(
-             dbc.Checklist(
-                 options=[
-                     {
-                         'label': 'Manual Crowd Pummeler - Maximum uses:',
-                         'value': 'mcp',
-                     },
-                     {'label': 'Bloodlust', 'value': 'lust'},
-                     {'label': 'Drums of Battle', 'value': 'drums'},
-                     {'label': 'Dark / Demonic Rune', 'value': 'rune'},
-                 ],
-                 value=['lust', 'drums', 'rune'], id='cooldowns',
-             ),
-             width='auto',
-         ),
-         dbc.Col(
-             dbc.Input(
-                 value=2, type='number', id='num_mcp',
-                 style={'width': '35%', 'marginTop': '-5%'},
-             )
-         )
-     ]),
+     dbc.Checklist(
+         options=[
+             {'label': 'Bloodlust', 'value': 'lust'},
+             {'label': 'Drums of Battle', 'value': 'drums'},
+             {'label': 'Dark / Demonic Rune', 'value': 'rune'},
+         ],
+         value=['lust', 'drums', 'rune'], id='cooldowns',
+     ),
      dbc.InputGroup(
          [
              dbc.InputGroupAddon('Potion CD:', addon_type='prepend'),
@@ -280,7 +258,7 @@ encounter_details = dbc.Col(
                  value='haste', id='potion',
              ),
          ],
-         style={'width': '50%', 'marginTop': '1.5%'}
+         style={'width': '75%', 'marginTop': '1.5%'}
      )],
     width='auto',
     style={
@@ -296,7 +274,7 @@ iteration_input = dbc.Col([
             dbc.InputGroupAddon('Number of replicates:', addon_type='prepend'),
             dbc.Input(value=20000, type='number', id='num_replicates')
         ],
-        style={'width': '35%'}
+        style={'width': '50%'}
     ),
     dbc.InputGroup(
         [
@@ -306,10 +284,19 @@ iteration_input = dbc.Col([
             ),
             dbc.InputGroupAddon('ms', addon_type='append')
         ],
-        style={'width': '35%'}
+        style={'width': '50%'}
     ),
     html.Br(),
     html.H5('Talents'),
+    dbc.Checklist(
+        options=[
+            {'label': 'Omen of Clarity', 'value': 'omen'},
+            {'label': 'Berserk', 'value': 'berserk'},
+            {'label': 'Primal Gore', 'value': 'primal_gore'},
+        ],
+        value=['berserk', 'primal_gore'], id='binary_talents'
+    ),
+    html.Br(),
     html.Div([
         html.Div(
             'Feral Aggression:',
@@ -327,7 +314,7 @@ iteration_input = dbc.Col([
                 {'label': '4', 'value': 4},
                 {'label': '5', 'value': 5},
             ],
-            value='0', id='feral_aggression',
+            value=5, id='feral_aggression',
             style={
                 'width': '20%', 'display': 'inline-block',
                 'marginBottom': '2.5%', 'marginRight': '5%'
@@ -370,7 +357,7 @@ iteration_input = dbc.Col([
                 {'label': '4', 'value': 4},
                 {'label': '5', 'value': 5},
             ],
-            value=5, id='naturalist',
+            value=4, id='naturalist',
             style={
                 'width': '20%', 'display': 'inline-block',
                 'marginBottom': '2.5%', 'marginRight': '5%'
@@ -391,7 +378,7 @@ iteration_input = dbc.Col([
                 {'label': '2', 'value': 2},
                 {'label': '3', 'value': 3},
             ],
-            value=3, id='natural_shapeshifter',
+            value='0', id='natural_shapeshifter',
             style={
                 'width': '20%', 'display': 'inline-block',
                 'marginBottom': '2.5%', 'marginRight': '5%'
@@ -412,7 +399,7 @@ iteration_input = dbc.Col([
                 {'label': '2', 'value': 2},
                 {'label': '3', 'value': 3},
             ],
-            value=3, id='intensity',
+            value='0', id='intensity',
             style={
                 'width': '20%', 'display': 'inline-block',
                 'marginBottom': '2.5%', 'marginRight': '5%'
@@ -420,20 +407,6 @@ iteration_input = dbc.Col([
         )]),
     html.Br(),
     html.H5('Player Strategy'),
-    dbc.InputGroup(
-        [
-            dbc.InputGroupAddon('Finishing move:', addon_type='prepend'),
-            dbc.Select(
-                options=[
-                    {'label': 'Rip', 'value': 'rip'},
-                    {'label': 'Ferocious Bite', 'value': 'bite'},
-                    {'label': 'None', 'value': 'none'},
-                ],
-                value='rip', id='finisher',
-            ),
-        ],
-        style={'width': '45%', 'marginBottom': '1.5%'}
-    ),
     dbc.InputGroup(
         [
             dbc.InputGroupAddon(
@@ -445,7 +418,7 @@ iteration_input = dbc.Col([
                     {'label': '4', 'value': 4},
                     {'label': '5', 'value': 5},
                 ],
-                value=4, id='rip_cp',
+                value=5, id='rip_cp',
             ),
         ],
         style={'width': '48%', 'marginBottom': '1.5%'}
@@ -462,29 +435,16 @@ iteration_input = dbc.Col([
                     {'label': '4', 'value': 4},
                     {'label': '5', 'value': 5},
                 ],
-                value=4, id='bite_cp',
+                value=5, id='bite_cp',
             ),
         ],
         style={'width': '60%', 'marginBottom': '1.5%'}
     ),
     dbc.InputGroup(
         [
-            dbc.InputGroupAddon('Wait at most:', addon_type='prepend'),
-            dbc.Input(
-                value=1.0, min=0.0, max=2.0, step=0.1, type='number',
-                id='max_wait_time',
-            ),
-            dbc.InputGroupAddon(
-                'seconds for an energy tick', addon_type='append'
-            )
-        ],
-        style={'width': '63%', 'marginBottom': '1.5%'}
-    ),
-    dbc.InputGroup(
-        [
             dbc.InputGroupAddon('Wait', addon_type='prepend'),
             dbc.Input(
-                value=15.0, min=0.0, step=0.5, type='number', id='cd_delay',
+                value=0.0, min=0.0, step=0.5, type='number', id='cd_delay',
             ),
             dbc.InputGroupAddon(
                 'seconds before using cooldowns', addon_type='append'
@@ -500,7 +460,7 @@ iteration_input = dbc.Col([
         ), width='auto'),
         dbc.Col('with', width='auto', id='biteweave_text_1'),
         dbc.Col(dbc.Input(
-            type='number', value=0, id='bite_time', min=0.0, step=0.1,
+            type='number', value=8, id='bite_time', min=0.0, step=0.1,
             style={'marginTop': '-3%', 'marginBottom': '7%', 'width': '40%'},
         ), width='auto'),
         dbc.Col(
@@ -508,69 +468,18 @@ iteration_input = dbc.Col([
             id='biteweave_text_2'
         )
     ],),
-    dbc.Row([
-        dbc.Col(dbc.Checklist(
-            options=[{'label': " weave Rip", 'value': 'rip'}], value=[],
-            id='use_ripweave',
-        ), width='auto'),
-        dbc.Col('at', width='auto', id='ripweave_text_1'),
-        dbc.Col(dbc.Input(
-            type='number', value=52, id='ripweave_energy', min=30, step=1,
-            style={'marginTop': '-3%', 'marginBottom': '7%', 'width': '40%'},
-        ), width='auto'),
-        dbc.Col(
-            'energy or above', width='auto', style={'marginLeft': '-15%'},
-            id='ripweave_text_2'
-        )
-    ],),
-    dbc.Row([
-        dbc.Col(dbc.Checklist(
-            options=[{'label': " pre-pop Tiger's Fury", 'value': 'prepop_TF'}],
-            value=[], id='prepop_TF',
-        ), width='auto'),
-        dbc.Col('at', width='auto'),
-        dbc.Col(dbc.Select(
-            options=[{'label': '1', 'value': 1}, {'label': '2', 'value': 2}],
-            value=2, id='prepop_numticks',
-            style={'marginTop': '-7%'},
-        ), width='auto'),
-        dbc.Col('energy ticks before combat', width='auto')
-    ],),
     dbc.Checklist(
-        options=[{'label': ' use Mangle trick', 'value': 'use_mangle_trick'}],
-        value=['use_mangle_trick'], id='use_mangle_trick'
+        options=[{'label': ' use Rake', 'value': 'use_rake'}],
+        value=[], id='use_rake'
     ),
-    dbc.Checklist(
-        options=[{'label': ' use Rake trick', 'value': 'use_rake_trick'}],
-        value=[], id='use_rake_trick'
-    ),
-    dbc.Row([
-        dbc.Col(dbc.Checklist(
-            options=[{'label': ' use Bite trick', 'value': 'use_bite_trick'}],
-            value=[], id='use_bite_trick'
-        ), width='auto'),
-        dbc.Col('with at least', width='auto', id='bite_trick_text_1'),
-        dbc.Col(dbc.Select(
-            options=[{'label':  i, 'value': i} for i in range(1, 6)],
-            value=2, id='bite_trick_cp',
-            style={'marginTop': '-7%'},
-        ), width='auto'),
-        dbc.Col(
-            'combo points, and an energy range up to', width='auto',
-            id='bite_trick_text_2'
-        ),
-        dbc.Col(dbc.Input(
-            type='number', value=39, id='bite_trick_max', min=35, step=1,
-            style={'marginTop': '-7%', 'width': '40%'},
-        ), width='auto'),
-    ]),
     dbc.Checklist(
         options=[{'label': ' use Innervate', 'value': 'use_innervate'}],
         value=[], id='use_innervate'
     ),
     dbc.Checklist(
         options=[{
-            'label': ' Mangle maintained by bear tank', 'value': 'bear_mangle'
+            'label': ' Mangle / Trauma maintained by bear tank / Arms warrior',
+            'value': 'bear_mangle'
         }], value=[], id='bear_mangle'
     ),
     html.Br(),
@@ -617,7 +526,7 @@ iteration_input = dbc.Col([
                 {'label': 'Blackened Naaru Sliver', 'value': 'bns'},
                 {'label': 'Darkmoon Card: Crusade', 'value': 'crusade'},
             ],
-            value='madness'
+            value='shard_of_contempt'
         )),
         dbc.Col(dbc.Select(
             id='trinket_2',
@@ -660,7 +569,7 @@ iteration_input = dbc.Col([
                 {'label': 'Blackened Naaru Sliver', 'value': 'bns'},
                 {'label': 'Darkmoon Card: Crusade', 'value': 'crusade'},
             ],
-            value='tsunami'
+            value='bns'
         )),
     ]),
     html.Div(
@@ -1127,43 +1036,42 @@ def process_trinkets(trinket_1, trinket_2, player, ap_mod, stat_mod, cd_delay):
 
 def create_player(
         buffed_attack_power, buffed_hit, buffed_crit, buffed_weapon_damage,
-        haste_rating, expertise_rating, armor_pen, buffed_mana_pool,
+        haste_rating, expertise_rating, armor_pen_rating, buffed_mana_pool,
         buffed_int, buffed_spirit, buffed_mp5, weapon_speed, unleashed_rage,
-        kings, raven_idol, other_buffs, stat_debuffs, cooldowns, num_mcp,
-        surv_agi, ferocious_inspiration, bonuses, naturalist, feral_aggression,
-        savage_fury, natural_shapeshifter, intensity, potion
+        kings, raven_idol, other_buffs, stat_debuffs, cooldowns, bonuses,
+        binary_talents, naturalist, feral_aggression, savage_fury,
+        natural_shapeshifter, intensity, potion
 ):
-    """Takes in raid buffed player stats from Seventy Upgrades, modifies them
-    based on boss debuffs and miscellaneous buffs not captured by Seventy
+    """Takes in raid buffed player stats from Eighty Upgrades, modifies them
+    based on boss debuffs and miscellaneous buffs not captured by Eighty
     Upgrades, and instantiates a Player object with those stats."""
 
     # Swing timer calculation is independent of other buffs. First we add up
     # the haste rating from all the specified haste buffs
-    use_mcp = ('mcp' in cooldowns) and (num_mcp > 0)
-    buffed_haste_rating = haste_rating + 500 * use_mcp
-    buffed_swing_timer = ccs.calc_swing_timer(buffed_haste_rating)
+    buffed_haste_rating = haste_rating
+    haste_multiplier = (
+        (1 + 0.2 * ('major_haste' in other_buffs))
+        * (1 + 0.03 * ('minor_haste' in other_buffs))
+    )
+    buffed_swing_timer = ccs.calc_swing_timer(
+        buffed_haste_rating, multiplier=haste_multiplier
+    )
 
     # Augment secondary stats as needed
     ap_mod = 1.1 * (1 + 0.1 * unleashed_rage)
-    debuff_ap = (
-        100 * ('consec' in other_buffs)
-        + 110 * ('hunters_mark' in stat_debuffs)
-        + 0.25 * surv_agi * ('expose' in stat_debuffs)
-    )
+    debuff_ap = 0
     encounter_crit = (
         buffed_crit + 3 * ('jotc' in stat_debuffs)
         + (28 * ('be_chain' in other_buffs) + 40 * bool(raven_idol)) / 22.1
     )
-    encounter_hit = buffed_hit + 3 * ('imp_ff' in stat_debuffs)
-    encounter_mp5 = buffed_mp5 + 50 * ('mana_spring_totem' in other_buffs)
+    encounter_hit = buffed_hit
+    encounter_mp5 = buffed_mp5
 
     # Calculate bonus damage parameters
-    encounter_weapon_damage = (
-        buffed_weapon_damage + ('bogling_root' in other_buffs)
-    )
+    encounter_weapon_damage = buffed_weapon_damage
     damage_multiplier = (
-        (1 + 0.02 * int(naturalist)) * 1.03**ferocious_inspiration
-        * (1 + 0.02 * ('sanc_aura' in other_buffs))
+        (1 + 0.02 * int(naturalist))
+        * (1 + 0.03 * ('sanc_aura' in other_buffs))
     )
     shred_bonus = 88 * ('everbloom' in bonuses) + 75 * ('t5_bonus' in bonuses)
 
@@ -1173,19 +1081,19 @@ def create_player(
         expertise_rating=expertise_rating, crit_chance=encounter_crit / 100,
         swing_timer=buffed_swing_timer, mana=buffed_mana_pool,
         intellect=buffed_int, spirit=buffed_spirit, mp5=encounter_mp5,
-        omen='omen' in other_buffs, feral_aggression=int(feral_aggression),
+        omen='omen' in binary_talents, feral_aggression=int(feral_aggression),
         savage_fury=int(savage_fury),
         natural_shapeshifter=int(natural_shapeshifter),
         intensity=int(intensity), weapon_speed=weapon_speed,
         bonus_damage=encounter_weapon_damage, multiplier=damage_multiplier,
-        jow='jow' in stat_debuffs, armor_pen=armor_pen,
+        jow='jow' in stat_debuffs, armor_pen_rating=armor_pen_rating,
         t4_bonus='t4_bonus' in bonuses, t6_2p='t6_2p' in bonuses,
         t6_4p='t6_4p' in bonuses, wolfshead='wolfshead' in bonuses,
         meta='meta' in bonuses, rune='rune' in cooldowns,
         pot=potion in ['super', 'fel'], cheap_pot=(potion == 'super'),
         shred_bonus=shred_bonus, debuff_ap=debuff_ap
     )
-    return player, ap_mod, (1 + 0.1 * kings) * 1.03
+    return player, ap_mod, (1 + 0.1 * kings) * 1.03, haste_multiplier
 
 
 def apply_buffs(
@@ -1196,29 +1104,29 @@ def apply_buffs(
     """Takes in unbuffed player stats, and turns them into buffed stats based
     on specified consumables and raid buffs. This function should only be
     called if the "Buffs" option is not checked in the exported file from
-    Seventy Upgrades, or else the buffs will be double counted!"""
+    Eighty Upgrades, or else the buffs will be double counted!"""
 
     # Determine "raw" AP, crit, and mana not from Str/Agi/Int
     raw_ap_unbuffed = unbuffed_ap / 1.1 - 2 * unbuffed_strength - unbuffed_agi
-    raw_crit_unbuffed = unbuffed_crit - unbuffed_agi / 25
+    raw_crit_unbuffed = unbuffed_crit - unbuffed_agi / 40
     raw_mana_unbuffed = unbuffed_mana - 15 * unbuffed_int
 
     # Augment all base stats based on specified buffs
     stat_multiplier = 1 + 0.1 * ('kings' in raid_buffs)
-    added_stats = 18 * ('motw' in raid_buffs)
+    added_stats = 19.6 * ('motw' in raid_buffs)
 
-    buffed_strength = stat_multiplier * (unbuffed_strength + 1.03 * (
-        added_stats + 98 * ('str_totem' in raid_buffs)
+    buffed_strength = stat_multiplier * (unbuffed_strength + 1.06 * 1.02 * (
+        added_stats + 86 * ('str_totem' in raid_buffs)
     ))
-    buffed_agi = stat_multiplier * (unbuffed_agi + 1.03 * (
-        added_stats + 88 * ('agi_totem' in raid_buffs)
+    buffed_agi = stat_multiplier * (unbuffed_agi + 1.06 * 1.02 * (
+        added_stats + 86 * ('str_totem' in raid_buffs)
         + 30 * ('agi_elixir' in consumables) + 20 * ('food' in consumables)
     ))
-    buffed_int = stat_multiplier * (unbuffed_int + 1.2 * 1.03 * (
+    buffed_int = stat_multiplier * (unbuffed_int + 1.2 * 1.06 * 1.02 * (
         added_stats + 40 * ('ai' in raid_buffs)
         + 30 * ('draenic' in consumables)
     ))
-    buffed_spirit = stat_multiplier * (unbuffed_spirit + 1.03 * (
+    buffed_spirit = stat_multiplier * (unbuffed_spirit + 1.06 * 1.02 * (
         added_stats + 50 * ('spirit' in raid_buffs)
         + 20 * ('food' in consumables) + 30 * ('draenic' in consumables)
     ))
@@ -1228,14 +1136,13 @@ def apply_buffs(
     buffed_attack_power = ap_mod * (
         raw_ap_unbuffed + 2 * buffed_strength + buffed_agi
         + 306 * 1.25 * ('might' in raid_buffs)
-        + 125 * ('trueshot_aura' in raid_buffs)
     )
     added_crit_rating = (
         12 * ('agi_elixir' in consumables)
         + 14 * ('weightstone' in consumables)
     )
     buffed_crit = (
-        raw_crit_unbuffed + buffed_agi / 25 + added_crit_rating / 22.1
+        raw_crit_unbuffed + buffed_agi / 40 + added_crit_rating / 22.1
     )
     buffed_hit = (
         unbuffed_hit + 1 * ('heroic_presence' in raid_buffs)
@@ -1461,19 +1368,17 @@ def plot_new_trajectory(sim, show_whites):
     Input('upload-data', 'contents'),
     Input('consumables', 'value'),
     Input('raid_buffs', 'value'),
-    Input('num_mcp', 'value'),
     Input('other_buffs', 'value'),
     Input('raven_idol', 'value'),
     Input('stat_debuffs', 'value'),
-    Input('surv_agi', 'value'),
     Input('trinket_1', 'value'),
     Input('trinket_2', 'value'),
     Input('run_button', 'n_clicks'),
     Input('weight_button', 'n_clicks'),
     Input('graph_button', 'n_clicks'),
     State('potion', 'value'),
-    State('ferocious_inspiration', 'value'),
     State('bonuses', 'value'),
+    State('binary_talents', 'value'),
     State('feral_aggression', 'value'),
     State('savage_fury', 'value'),
     State('naturalist', 'value'),
@@ -1483,23 +1388,13 @@ def plot_new_trajectory(sim, show_whites):
     State('boss_armor', 'value'),
     State('boss_debuffs', 'value'),
     State('cooldowns', 'value'),
-    State('finisher', 'value'),
     State('rip_cp', 'value'),
     State('bite_cp', 'value'),
-    State('max_wait_time', 'value'),
     State('cd_delay', 'value'),
-    State('prepop_TF', 'value'),
-    State('prepop_numticks', 'value'),
-    State('use_mangle_trick', 'value'),
-    State('use_rake_trick', 'value'),
-    State('use_bite_trick', 'value'),
-    State('bite_trick_cp', 'value'),
-    State('bite_trick_max', 'value'),
+    State('use_rake', 'value'),
     State('use_innervate', 'value'),
     State('use_biteweave', 'value'),
     State('bite_time', 'value'),
-    State('use_ripweave', 'value'),
-    State('ripweave_energy', 'value'),
     State('bear_mangle', 'value'),
     State('num_replicates', 'value'),
     State('latency', 'value'),
@@ -1507,15 +1402,12 @@ def plot_new_trajectory(sim, show_whites):
     State('epic_gems', 'checked'),
     State('show_whites', 'checked'))
 def compute(
-        json_file, consumables, raid_buffs, num_mcp,
-        other_buffs, raven_idol, stat_debuffs, surv_agi, trinket_1, trinket_2,
-        run_clicks, weight_clicks, graph_clicks, potion, ferocious_inspiration,
-        bonuses, feral_aggression, savage_fury, naturalist,
-        natural_shapeshifter, intensity, fight_length, boss_armor,
-        boss_debuffs, cooldowns, finisher, rip_cp, bite_cp, max_wait_time,
-        cd_delay, prepop_TF, prepop_numticks, use_mangle_trick, use_rake_trick,
-        use_bite_trick, bite_trick_cp, bite_trick_max, use_innervate,
-        use_biteweave, bite_time, use_ripweave, ripweave_energy, bear_mangle,
+        json_file, consumables, raid_buffs, other_buffs, raven_idol,
+        stat_debuffs, trinket_1, trinket_2, run_clicks, weight_clicks,
+        graph_clicks, potion, bonuses, binary_talents, feral_aggression,
+        savage_fury, naturalist, natural_shapeshifter, intensity, fight_length,
+        boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
+        use_rake, use_innervate, use_biteweave, bite_time, bear_mangle,
         num_replicates, latency, calc_mana_weights, epic_gems, show_whites
 ):
     ctx = dash.callback_context
@@ -1618,16 +1510,16 @@ def compute(
         kings = 'kings' in raid_buffs
 
     # Create Player object based on raid buffed stat inputs and talents
-    player, ap_mod, stat_mod = create_player(
+    player, ap_mod, stat_mod, haste_multiplier = create_player(
         input_stats['attackPower'], input_stats['hit'], input_stats['crit'],
         input_stats.get('weaponDamage', 0), input_stats.get('hasteRating', 0),
-        input_stats.get('expertiseRating', 0), input_stats.get('armorPen', 0),
-        input_stats['mana'], input_stats['intellect'], input_stats['spirit'],
+        input_stats.get('expertiseRating', 0),
+        input_stats.get('armorPenRating', 0),input_stats['mana'],
+        input_stats['intellect'], input_stats['spirit'],
         input_stats.get('mp5', 0), float(input_stats['mainHandSpeed']),
         unleashed_rage, kings, raven_idol, other_buffs, stat_debuffs,
-        cooldowns, num_mcp, surv_agi, ferocious_inspiration, bonuses,
-        naturalist, feral_aggression, savage_fury, natural_shapeshifter,
-        intensity, potion
+        cooldowns, bonuses, binary_talents, naturalist, feral_aggression,
+        savage_fury, natural_shapeshifter, intensity, potion
     )
 
     # Process trinkets
@@ -1646,12 +1538,8 @@ def compute(
     )
 
     # Create Simulation object based on specified parameters
-    max_mcp = num_mcp if 'mcp' in cooldowns else 0
-    bite = (
-        (bool(use_biteweave) and (finisher == 'rip')) or (finisher == 'bite')
-    )
-    rip_combos = 6 if finisher != 'rip' else int(rip_cp)
-    ripweave_combos = 6 if finisher != 'bite' else int(rip_cp)
+    bite = bool(use_biteweave)
+    rip_combos = int(rip_cp)
 
     if 'lust' in cooldowns:
         trinket_list.append(trinkets.Bloodlust(delay=cd_delay))
@@ -1698,18 +1586,12 @@ def compute(
         haste_pot = None
 
     sim = ccs.Simulation(
-        player, fight_length + 1e-9, 0.001 * latency, num_mcp=max_mcp,
-        boss_armor=boss_armor, prepop_TF=bool(prepop_TF),
-        prepop_numticks=int(prepop_numticks), min_combos_for_rip=rip_combos,
-        min_combos_for_bite=int(bite_cp), use_innervate=bool(use_innervate),
-        use_rake_trick=bool(use_rake_trick),
-        use_bite_trick=bool(use_bite_trick), bite_trick_cp=int(bite_trick_cp),
-        bite_trick_max=bite_trick_max,
-        use_mangle_trick=bool(use_mangle_trick), use_bite=bite,
-        bite_time=bite_time, use_rip_trick=bool(use_ripweave),
-        rip_trick_cp=ripweave_combos, rip_trick_min=ripweave_energy,
-        bear_mangle=bool(bear_mangle), trinkets=trinket_list,
-        max_wait_time=max_wait_time, haste_pot=haste_pot
+        player, fight_length + 1e-9, 0.001 * latency, boss_armor=boss_armor,
+        min_combos_for_rip=rip_combos, min_combos_for_bite=int(bite_cp),
+        use_innervate=bool(use_innervate), use_rake=bool(use_rake),
+        use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
+        trinkets=trinket_list, haste_pot=haste_pot,
+        haste_multiplier=haste_multiplier
     )
     sim.set_active_debuffs(boss_debuffs)
     player.calc_damage_params(**sim.params)
@@ -1743,77 +1625,6 @@ def compute(
     return (
         upload_output + stats_output + dps_output + weights_output
         + example_output
-    )
-
-
-# Callbacks for disabling rotation options when inappropriate
-@app.callback(
-    Output('use_rake_trick', 'options'),
-    Output('use_bite_trick', 'options'),
-    Output('use_rake_trick', 'labelStyle'),
-    Output('use_bite_trick', 'labelStyle'),
-    Output('bite_trick_text_1', 'style'),
-    Output('bite_trick_text_2', 'style'),
-    Input('bonuses', 'value'),
-    Input('use_rake_trick', 'value'),
-    Input('use_bite_trick', 'value'))
-def disable_tricks(bonuses, rake_trick_checked, bite_trick_checked):
-    rake_options = {'label': ' use Rake trick', 'value': 'use_rake_trick'}
-    bite_options = {'label': ' use Bite trick', 'value': 'use_bite_trick'}
-    rake_text_style = {}
-    bite_text_style = {}
-
-    if 't6_2p' in bonuses:
-        if rake_trick_checked:
-            rake_text_style['color'] = '#D35845'
-        else:
-            rake_options['disabled'] = True
-            rake_text_style['color'] = '#888888'
-
-        if bite_trick_checked:
-            bite_text_style['color'] = '#D35845'
-        else:
-            bite_options['disabled'] = True
-            bite_text_style['color'] = '#888888'
-
-    return (
-        [rake_options], [bite_options], rake_text_style, bite_text_style,
-        bite_text_style, bite_text_style
-    )
-
-
-@app.callback(
-    Output('use_biteweave', 'options'),
-    Output('use_biteweave', 'labelStyle'),
-    Output('biteweave_text_1', 'style'),
-    Output('biteweave_text_2', 'style'),
-    Output('use_ripweave', 'options'),
-    Output('use_ripweave', 'labelStyle'),
-    Output('ripweave_text_1', 'style'),
-    Output('ripweave_text_2', 'style'),
-    Input('finisher', 'value'))
-def disable_weaves(finisher):
-    biteweave_options = {'label': ' weave Ferocious Bite', 'value': 'bite'}
-    ripweave_options = {'label': ' weave Rip', 'value': 'rip'}
-    biteweave_text_style_1 = {}
-    biteweave_text_style_2 = {'marginLeft': '-15%'}
-    ripweave_text_style_1 = {}
-    ripweave_text_style_2 = {'marginLeft': '-15%'}
-
-    if finisher != 'rip':
-        biteweave_options['disabled'] = True
-        biteweave_text_style_1['color'] = '#888888'
-        biteweave_text_style_2['color'] = '#888888'
-
-    if finisher != 'bite':
-        ripweave_options['disabled'] = True
-        ripweave_text_style_1['color'] = '#888888'
-        ripweave_text_style_2['color'] = '#888888'
-
-    return (
-        [biteweave_options], biteweave_text_style_1, biteweave_text_style_1,
-        biteweave_text_style_2, [ripweave_options], ripweave_text_style_1,
-        ripweave_text_style_1, ripweave_text_style_2
     )
 
 

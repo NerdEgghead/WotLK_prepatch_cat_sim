@@ -201,12 +201,13 @@ class Player():
 
     def __init__(
             self, attack_power, hit_chance, expertise_rating, crit_chance,
-            armor_pen, swing_timer, mana, intellect, spirit, mp5, jow=False,
-            pot=True, cheap_pot=False, rune=True, t4_bonus=False, t6_2p=False,
-            t6_4p=False, wolfshead=True, meta=False, bonus_damage=0,
-            shred_bonus=0, debuff_ap=0, multiplier=1.1, omen=True,
-            feral_aggression=0, savage_fury=2, natural_shapeshifter=3,
-            intensity=3, weapon_speed=3.0, proc_trinkets=[], log=False
+            armor_pen_rating, swing_timer, mana, intellect, spirit, mp5,
+            jow=False, pot=True, cheap_pot=False, rune=True, t4_bonus=False,
+            t6_2p=False, t6_4p=False, wolfshead=True, meta=False,
+            bonus_damage=0, shred_bonus=0, debuff_ap=0, multiplier=1.1,
+            omen=True, feral_aggression=0, savage_fury=2,
+            natural_shapeshifter=3, intensity=3, weapon_speed=3.0,
+            proc_trinkets=[], log=False
     ):
         """Initialize player with key damage parameters.
 
@@ -215,9 +216,9 @@ class Player():
             hit_chance (float): Chance to hit as a fraction.
             expertise_rating (int): Player's Expertise Rating stat.
             crit_chance (float): Fully raid buffed crit chance as a fraction.
-            armor_pen (int): Armor penetration from gear. Boss armor debuffs
-                are handled by Simulation objects as they are not properties of
-                the player character.
+            armor_pen_rating (int): Armor penetration rating from gear. Boss
+                armor debuffs are handled by Simulation objects as they are not
+                properties of the player character.
             swing_timer (float): Melee swing timer in seconds, including haste
                 effects such as MCP, Warchief's Blessing, and libram enchants.
             mana (int): Fully raid buffed mana.
@@ -274,7 +275,7 @@ class Player():
         self.expertise_rating = expertise_rating
 
         self.crit_chance = crit_chance - 0.048
-        self.armor_pen = armor_pen
+        self.armor_pen_rating = armor_pen_rating
         self.swing_timer = swing_timer
         self.mana_pool = mana
         self.intellect = intellect
@@ -987,28 +988,21 @@ class Simulation():
 
     # Default parameters specifying the player execution strategy
     default_strategy = {
-        'prepop_TF': False,
-        'prepop_numticks': 2,
-        'min_combos_for_rip': 4,
-        'use_mangle_trick': True,
-        'use_rake_trick': False,
+        'min_combos_for_rip': 5,
+        'use_rake': False,
         'use_bite_trick': False,
         'bite_trick_cp': 2,
         'bite_trick_max': 39,
-        'use_bite': False,
-        'bite_time': 4.0,
-        'min_combos_for_bite': 4,
-        'use_rip_trick': False,
-        'rip_trick_cp': 4,
-        'rip_trick_min': 52,
+        'use_bite': True,
+        'bite_time': 8.0,
+        'min_combos_for_bite': 5,
         'use_innervate': True,
         'bear_mangle': False,
-        'max_wait_time': 2.0,
     }
 
     def __init__(
         self, player, fight_length, latency, num_mcp=0, trinkets=[],
-        haste_pot=None, **kwargs
+        haste_pot=None, haste_multiplier=1.0, **kwargs
     ):
         """Initialize simulation.
 
@@ -1029,6 +1023,8 @@ class Simulation():
             haste_pot (trinkets.HastePotion or None): Optional instantiated
                 Haste Potion object that will be used on cooldown in the
                 encounter in addition to the provided trinkets.
+            haste_multiplier (float): Total multiplier from external percentage
+                haste buffs such as Windfury Totem. Defaults to 1.
             kwargs (dict): Key, value pairs for all other encounter parameters,
                 including boss armor, relevant debuffs, and player stregy
                 specification. An error will be thrown if the parameter is not
@@ -1082,9 +1078,9 @@ class Simulation():
         # encounter parameters.
         self.player.calc_damage_params(**self.params)
 
-        # Set multiplicative haste buffs to 0. The multiplier can be increased
+        # Set multiplicative haste buffs. The multiplier can be increased
         # during Bloodlust, etc.
-        self.haste_multiplier = 1.0
+        self.haste_multiplier = haste_multiplier
 
     def set_active_debuffs(self, debuff_list):
         """Set active debuffs according to a specified list.
