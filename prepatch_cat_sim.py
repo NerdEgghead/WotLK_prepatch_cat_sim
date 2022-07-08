@@ -205,7 +205,7 @@ class Player():
             jow=False, pot=True, cheap_pot=False, rune=True, t4_bonus=False,
             t6_2p=False, t6_4p=False, wolfshead=True, meta=False,
             bonus_damage=0, shred_bonus=0, debuff_ap=0, multiplier=1.1,
-            omen=True, feral_aggression=0, savage_fury=2,
+            omen=True, primal_gore=True, feral_aggression=0, savage_fury=2,
             natural_shapeshifter=3, intensity=3, weapon_speed=3.0,
             proc_trinkets=[], log=False
     ):
@@ -251,6 +251,7 @@ class Player():
             multiplier (float): Overall damage multiplier from talents and
                 buffs. Defaults to 1.1 (from 5/5 Naturalist).
             omen (bool): Whether Omen of Clarity is active. Defaults True.
+            primal_gore (bool): Whether Primal Gore is talented. Defaults True.
             feral_aggression (int): Points taken in Feral Aggression talent.
                 Defaults to 2.
             savage_fury (int): Points taken in Savage Fury talent. Defaults
@@ -295,14 +296,15 @@ class Player():
         self.meta = meta
         self.damage_multiplier = multiplier
         self.omen = omen
+        self.primal_gore = primal_gore
         self.feral_aggression = feral_aggression
         self.savage_fury = savage_fury
         self.natural_shapeshifter = natural_shapeshifter
         self.intensity = intensity
         self.weapon_speed = weapon_speed
         self.omen_rates = {
-            'white': 2.0/60,
-            'yellow': 2.0/60 * self.weapon_speed
+            'white': 3.5/60,
+            'yellow': 0.0
         }
         self.proc_trinkets = proc_trinkets
         self.set_mana_regen()
@@ -312,12 +314,12 @@ class Player():
     def calc_miss_chance(self):
         """Update overall miss chance when a change to the player's hit percent
         or Expertise Rating occurs."""
-        miss_reduction = min(self._hit_chance * 100, 9.)
+        miss_reduction = min(self._hit_chance * 100, 8.)
         dodge_reduction = min(
-            6.5, np.floor(self._expertise_rating / 3.9425) * 0.25
+            6.5, (10 + np.floor(self._expertise_rating / 3.9425)) * 0.25
         )
         self.miss_chance = 0.01 * (
-            (9. - miss_reduction) + (6.5 - dodge_reduction)
+            (8. - miss_reduction) + (6.5 - dodge_reduction)
         )
 
     def set_mana_regen(self):
@@ -330,18 +332,17 @@ class Player():
         # shapeshifted, based on the average of three measurements by Rokpaus.
         # Neither number fits the caster/cat data exactly, so the formula is
         # likely not exact.
-        self.regen_factor = 0.0085 * np.sqrt(self.intellect) * 2
+        self.regen_factor = 0.0085 * np.sqrt(self.intellect)
         base_regen = self.spirit * self.regen_factor
-        bonus_regen = self.mp5 / 5 * 2
+        bonus_regen = self.mp5 / 5
 
         # In TBC, the Intensity talent allows a portion of the base regen to
         # apply while within the five second rule
         self.regen_rates = {
             'base': base_regen + bonus_regen,
-            'five_second_rule': 0.1*self.intensity*base_regen + bonus_regen,
-            'innervated': 5 * base_regen + bonus_regen
+            'five_second_rule': 0.5/3*self.intensity*base_regen + bonus_regen,
         }
-        self.shift_cost = 830 * (1 - 0.1 * self.natural_shapeshifter)
+        self.shift_cost = 1224 * 0.4 * (1 - 0.1 * self.natural_shapeshifter)
 
         # Since Fel Mana pots regen over time rather than instantaneously, we
         # need to use a more sophisticated heuristic for when to pop it.
@@ -358,12 +359,12 @@ class Player():
         self.pot_threshold = self.mana_pool - 36 * (
             400./3 * self.mana_pot_multi
             + self.regen_rates['five_second_rule'] / 2
-            + 37. * (1./self.swing_timer + 2./5) - self.shift_cost/5
+            + 35. * (1./self.swing_timer + 1./4.2)
         )
 
     def calc_damage_params(
-            self, gift_of_arthas, boss_armor, sunder, imp_EA, CoR, faerie_fire,
-            annihilator, blood_frenzy, tigers_fury=False
+            self, gift_of_arthas, boss_armor, sunder, faerie_fire,
+            blood_frenzy, tigers_fury=False
     ):
         """Calculate high and low end damage of all abilities as a function of
         specified boss debuffs."""
@@ -376,12 +377,17 @@ class Player():
         if isinstance(sunder, bool):
             sunder *= 5
 
-        residual_armor = max(0, (
-            boss_armor - max(sunder * 520, imp_EA * 3075) - 800 * CoR
-            - 610 * faerie_fire - 600 * annihilator - self.armor_pen
-        ))
+        debuffed_armor = (
+            boss_armor * (1 - 0.04 * sunder) * (1 - 0.05 * faerie_fire)
+        )
+        armor_constant = 467.5 * 70 - 22167.5
+        arp_cap = (debuffed_armor + armor_constant) / 3.
+        armor_pen = (
+            self.armor_pen_rating / 6.73 / 100 * min(arp_cap, debuffed_armor)
+        )
+        residual_armor = debuffed_armor - armor_pen
         armor_multiplier = (
-            1 - residual_armor / (residual_armor - 22167.5 + 467.5*70)
+            1 - residual_armor / (residual_armor + armor_constant)
         )
         damage_multiplier = self.damage_multiplier * (1 + 0.04 * blood_frenzy)
         self.multiplier = armor_multiplier * damage_multiplier
@@ -402,31 +408,24 @@ class Player():
         # incorrect according to the DB.
         ap, bm = self.attack_power, self.bite_multiplier
         self.bite_low = {
-            i: (169*i + 57 + 0.05 * i * ap) * bm for i in range(1, 6)
+            i: (169*i + 57 + 0.07 * i * ap) * bm for i in range(1, 6)
         }
         self.bite_high = {
-            i: (169*i + 123 + 0.05 * i * ap) * bm for i in range(1, 6)
+            i: (169*i + 123 + 0.07 * i * ap) * bm for i in range(1, 6)
         }
         mangle_fac = 1 + 0.1 * self.savage_fury
-        self.claw_low = mangle_fac * (self.white_low + 190 * self.multiplier)
-        self.claw_high = mangle_fac * (self.white_high + 190 * self.multiplier)
         self.mangle_low = mangle_fac * (
-            self.white_low * 1.6 + 264 * self.multiplier
+            self.white_low * 2 + 330 * self.multiplier
         )
         self.mangle_high = mangle_fac * (
-            self.white_high * 1.6 + 264 * self.multiplier
+            self.white_high * 2 + 330 * self.multiplier
         )
         rake_multi = mangle_fac * damage_multiplier
-        self.rake_hit = rake_multi * (78 + 0.01 * self.attack_power)
-        self.rake_tick = rake_multi * (36 + 0.02 * self.attack_power)
+        self.rake_hit = rake_multi * (90 + 0.01 * self.attack_power)
+        self.rake_tick = rake_multi * (138 + 0.06 * self.attack_power)
         rip_multiplier = damage_multiplier * (1 + 0.15 * self.t6_bonus)
-
-        # Rip base values are just straight up wrong in tooltip, below numbers
-        # come from the DB, which matches in-game measurements.
         self.rip_tick = {
-            5: (1554 + 0.24*self.attack_power) / 6 * rip_multiplier,
-            4: (1272 + 0.24*self.attack_power) / 6 * rip_multiplier,
-            3: (990 + 0.18*self.attack_power) / 6 * rip_multiplier,
+            i: (24 + 47*i + 0.01*i*ap) * rip_multiplier for i in range(1,6)
         }
 
         # Adjust damage values for Gift of Arthas
@@ -434,7 +433,7 @@ class Player():
             return
 
         for bound in ['low', 'high']:
-            for ability in ['white', 'shred', 'claw', 'mangle']:
+            for ability in ['white', 'shred', 'mangle']:
                 attr = '%s_%s' % (ability, bound)
                 setattr(self, attr, getattr(self, attr) + 8 * armor_multiplier)
 
@@ -449,6 +448,7 @@ class Player():
         self.gcd = 0.0
         self.omen_proc = False
         self.omen_icd = 0.0
+        self.tf_cd = 0.0
         self.energy = 100
         self.combo_points = 0
         self.mana = self.mana_pool
@@ -466,8 +466,8 @@ class Player():
         self.dmg_breakdown = collections.OrderedDict()
 
         for cast_type in [
-            'Melee', 'Mangle', 'Shred', 'Rip', 'Claw', 'Ferocious Bite',
-            'Shift', 'Rake'
+            'Melee', 'Mangle', 'Shred', 'Rip', 'Rake', 'Ferocious Bite',
+            'Shift'
         ]:
             self.dmg_breakdown[cast_type] = {'casts': 0, 'damage': 0.0}
 
@@ -538,24 +538,21 @@ class Player():
             if not trinket.mangle_only:
                 trinket.check_for_proc(crit, yellow)
 
-    def regen_mana(self, pot=False):
-        """Update player mana on a Spirit tick.
+    def regen(self, delta_t):
+        """Update player Energy and Mana.
 
         Arguments:
-            pot (bool): Whether the mana regeneration comes from a Fel Mana
-                Potion tick rather than a conventional spirit tick. Defaults
-                False.
+            delta_t (float): Elapsed time, in seconds, since last resource
+                update.
         """
-        if pot:
-            regen = 400 * self.mana_pot_multi
-        elif self.innervated:
-            regen = self.regen_rates['innervated']
-        elif self.five_second_rule:
-            regen = self.regen_rates['five_second_rule']
-        else:
-            regen = self.regen_rates['base']
+        self.energy = min(100, self.energy + 10 * delta_t)
 
-        self.mana = min(self.mana + regen, self.mana_pool)
+        if self.five_second_rule:
+            mana_regen = self.regen_rates['five_second_rule']
+        else:
+            mana_regen = self.regen_rates['base']
+
+        self.mana = min(self.mana + mana_regen * delta_t, self.mana_pool)
 
     def use_rune(self):
         """Pop a Dark/Demonic Rune to restore mana when appropriate.
@@ -852,7 +849,7 @@ class Player():
             time (float): Time at which the shift is executed, in seconds. Used
                 for determining the five second rule.
         """
-        self.energy = 40 + 20 * self.wolfshead
+        self.energy = max(self.energy, 60) + 20 * self.wolfshead
         self.gcd = 1.5
         self.dmg_breakdown['Shift']['casts'] += 1
         self.mana -= self.shift_cost
@@ -919,13 +916,11 @@ class ArmorDebuffs():
         """Use the simulation's existing params dictionary to determine whether
         Sunder, EA, or both should be applied."""
         self.use_sunder = bool(self.params['sunder'])
-        self.use_ea = bool(self.params['imp_EA'])
         self.reset()
 
     def reset(self):
         """Remove all armor debuffs at the start of a fight."""
         self.params['sunder'] = 0
-        self.params['imp_EA'] = False
 
     def update(self, time, player, sim):
         """Add Sunder or EA applications at the appropriate times. Currently,
@@ -952,20 +947,6 @@ class ArmorDebuffs():
                 )
 
             player.calc_damage_params(**self.params)
-        elif self.use_ea and (not self.params['imp_EA']) and (time >= 15.):
-            self.params['imp_EA'] = True
-
-            if sim.log:
-                if self.params['sunder'] > 0:
-                    sim.combat_log.append(
-                        sim.gen_log(time, 'Sunder Armor', 'falls off')
-                    )
-
-                sim.combat_log.append(
-                    sim.gen_log(time, 'Expose Armor', 'applied')
-                )
-
-            player.calc_damage_params(**self.params)
 
         return 0.0
 
@@ -979,10 +960,7 @@ class Simulation():
         'gift_of_arthas': True,
         'boss_armor': 3731,
         'sunder': False,
-        'imp_EA': True,
-        'CoR': True,
         'faerie_fire': True,
-        'annihilator': False,
         'blood_frenzy': False
     }
 
@@ -990,9 +968,6 @@ class Simulation():
     default_strategy = {
         'min_combos_for_rip': 5,
         'use_rake': False,
-        'use_bite_trick': False,
-        'bite_trick_cp': 2,
-        'bite_trick_max': 39,
         'use_bite': True,
         'bite_time': 8.0,
         'min_combos_for_bite': 5,
@@ -1001,8 +976,8 @@ class Simulation():
     }
 
     def __init__(
-        self, player, fight_length, latency, num_mcp=0, trinkets=[],
-        haste_pot=None, haste_multiplier=1.0, **kwargs
+        self, player, fight_length, latency, trinkets=[], haste_multiplier=1.0,
+        **kwargs
     ):
         """Initialize simulation.
 
@@ -1014,15 +989,8 @@ class Simulation():
                 simulate realistic delays between energy gains and subsequent
                 special ability casts, as well as delays in powershift timing
                 relative to the GCD.
-            num_mcp (int): Maximum number of MCPs that can be used during the
-                fight. If nonzero, the Player object should be instantiated
-                with a hasted swing timer, and the simulation will slow it down
-                once the haste buff expires. Defaults to 0.
             trinkets (list of trinkets.Trinket): List of ActivatedTrinket or
                 ProcTrinket objects that will be used on cooldown.
-            haste_pot (trinkets.HastePotion or None): Optional instantiated
-                Haste Potion object that will be used on cooldown in the
-                encounter in addition to the provided trinkets.
             haste_multiplier (float): Total multiplier from external percentage
                 haste buffs such as Windfury Totem. Defaults to 1.
             kwargs (dict): Key, value pairs for all other encounter parameters,
@@ -1034,7 +1002,6 @@ class Simulation():
         self.player = player
         self.fight_length = fight_length
         self.latency = latency
-        self.max_mcp = int(round(num_mcp))
         self.trinkets = trinkets
         self.params = copy.deepcopy(self.default_params)
         self.strategy = copy.deepcopy(self.default_strategy)
@@ -1050,23 +1017,6 @@ class Simulation():
                      'parameters are: %s. Supported strategy parameters are: '
                      '%s.') % (key, self.params.keys(), self.strategy.keys())
                 )
-
-        # Determine whether Ferocious Bite is to be used instead of Rip as the
-        # primary finishing move.
-        self.strategy['bite_over_rip'] = (
-            self.strategy['use_bite']
-            and (self.strategy['min_combos_for_rip'] > 5)
-        )
-        self.strategy['no_finisher'] = (
-            (not self.strategy['use_bite'])
-            and (self.strategy['min_combos_for_rip'] > 5)
-        )
-
-        # Set up Haste Potion usage if requested
-        self.haste_pot = haste_pot
-
-        if self.haste_pot is not None:
-            self.trinkets.append(self.haste_pot)
 
         # Set up controller for delayed armor debuffs. The controller can be
         # treated identically to a Trinket object as far as the sim is
@@ -1235,16 +1185,16 @@ class Simulation():
         Returns:
             damage_done (float): Damage done by the player action.
         """
-        # If we're out of form because we just cast Innervate, always shift
+        # If we're out of form because we just cast GotW/etc., always shift
         if not self.player.cat_form:
             self.player.shift(time)
             return 0.0
 
         # If we previously decided to shift, then execute the shift now once
         # the input delay is over.
-        if self.player.ready_to_shift:
-            self.innervate_or_shift(time)
-            return 0.0
+        #if self.player.ready_to_shift:
+        #    self.innervate_or_shift(time)
+        #    return 0.0
 
         energy, cp = self.player.energy, self.player.combo_points
         rip_cp = self.strategy['min_combos_for_rip']
@@ -1253,19 +1203,12 @@ class Simulation():
         # 10/6/21 - Added logic to not cast Rip if we're near the end of the
         # fight.
         end_thresh = 10
-        rip_now = (cp >= rip_cp) and (not self.rip_debuff)
-        ripweave_now = (
-            self.strategy['use_rip_trick']
-            and (cp >= self.strategy['rip_trick_cp']) and (not self.rip_debuff)
-            and (energy >= self.strategy['rip_trick_min'])
-            and (not self.player.omen_proc)
-        )
         rip_now = (
-            (rip_now or ripweave_now)
+            (cp >= rip_cp) and (not self.rip_debuff)
             and (self.fight_length - time >= end_thresh)
         )
         bite_at_end = (
-            (cp >= bite_cp) and (not self.strategy['no_finisher'])
+            (cp >= bite_cp)
             and ((self.fight_length - time < end_thresh) or (
                     self.rip_debuff and
                     (self.fight_length - self.rip_end < end_thresh)
@@ -1280,147 +1223,177 @@ class Simulation():
             and (self.rip_end - time >= self.strategy['bite_time'])
         )
         bite_now = (
-            (bite_before_rip or self.strategy['bite_over_rip'])
+            (bite_before_rip or bite_at_end)
             and (cp >= bite_cp)
         )
-        rip_next = (
-            (rip_now or ((cp >= rip_cp) and (self.rip_end <= next_tick)))
-            and (self.fight_length - next_tick >= end_thresh)
-        )
-        mangle_next = (
-            (not rip_next) and (mangle_now or (self.mangle_end <= next_tick))
-        )
-        # 12/2/21 - Added wait_to_mangle parameter that tells us whether we
-        # should wait for the next Energy tick and cast Mangle, assuming we
-        # are less than a tick's worth of Energy from being able to cast it. In
-        # a standard Wolfshead rotation, wait_for_mangle is identical to
-        # mangle_next, i.e. we only wait for the tick if Mangle will have
-        # fallen off before the next tick. In a no-Wolfshead rotation, however,
-        # it is preferable to Mangle rather than Shred as the second special in
-        # a standard cycle, provided a bonus like 2pT6 is present to bring the
-        # Mangle Energy cost down to 38 or below so that it can be fit in
-        # alongside a Shred.
-        wait_to_mangle = (
-            mangle_next
-            or ((not self.player.wolfshead) and (mangle_cost <= 38))
-        )
-        bite_before_rip_next = (
-            bite_before_rip
-            and (self.rip_end - next_tick >= self.strategy['bite_time'])
-        )
-        prio_bite_over_mangle = (
-            self.strategy['bite_over_rip'] or (not mangle_now)
-        )
-        time_to_next_tick = next_tick - time
-        self.waiting_for_tick = True
 
-        if self.player.mana < self.player.shift_cost:
-            # If this is the first time we're oom, log it
-            if self.time_to_oom is None:
-                self.time_to_oom = time
+        rake_now = (self.strategy['use_rake']) and (not self.rake_debuff)
 
-            # No-shift rotation
-            if (rip_now and ((energy >= 30) or self.player.omen_proc)):
-                self.rip(time)
-            elif (mangle_now and
-                  ((energy >= mangle_cost) or self.player.omen_proc)):
-                return self.mangle(time)
-            elif (bite_now and ((energy >= 35) or self.player.omen_proc)):
-                return self.player.bite()
-            elif (energy >= 42) or self.player.omen_proc:
-                return self.player.shred()
-        elif energy < 10:
-            self.innervate_or_shift(time)
+        # First figure out how much Energy we must float in order to be able
+        # to refresh our buffs/debuffs as soon as they fall off
+        floating_energy = 0
+        previous_time = time
+
+        for refresh_time, refresh_cost in self.pending_actions:
+            delta_t = refresh_time - previous_time
+
+            if delta_t < refresh_cost / 10.:
+                floating_energy += refresh_cost - 10 * delta_t
+                previous_time = refresh_time
+            else:
+                previous_time += refresh_cost / 10.
+
+        excess_energy = energy - floating_energy
+        self.waiting_for_energy = True
+
+        # If we have less than 30 Energy, then use Tiger's
+        # Fury if it is off cooldown.
+        if (energy < 30) and (self.player.tf_cd < 1e-9):
+            self.apply_tigers_fury(time)
         elif rip_now:
             if (energy >= 30) or self.player.omen_proc:
                 self.rip(time)
-            elif time_to_next_tick > self.strategy['max_wait_time']:
-                self.innervate_or_shift(time)
-        elif (bite_now or bite_at_end) and prio_bite_over_mangle:
-            # Decision tree for Bite usage is more complicated, so there is
-            # some duplicated logic with the main tree.
+        elif bite_now:
 
-            # Shred versus Bite decision is the same as vanilla criteria.
 
-            # Bite immediately if we'd have to wait for the following cast.
-            cutoff_mod = 0 if time_to_next_tick <= 1.0 else 20
-            if ((energy >= 57 + cutoff_mod) or
-                    ((energy >= 15 + cutoff_mod) and self.player.omen_proc)):
-                return self.player.shred()
-            if energy >= 35:
-                return self.player.bite()
+        #rip_next = (
+        #    (rip_now or ((cp >= rip_cp) and (self.rip_end <= next_tick)))
+        #    and (self.fight_length - next_tick >= end_thresh)
+        #)
+        #mangle_next = (
+        #    (not rip_next) and (mangle_now or (self.mangle_end <= next_tick))
+        #)
+        ## 12/2/21 - Added wait_to_mangle parameter that tells us whether we
+        ## should wait for the next Energy tick and cast Mangle, assuming we
+        ## are less than a tick's worth of Energy from being able to cast it. In
+        ## a standard Wolfshead rotation, wait_for_mangle is identical to
+        ## mangle_next, i.e. we only wait for the tick if Mangle will have
+        ## fallen off before the next tick. In a no-Wolfshead rotation, however,
+        ## it is preferable to Mangle rather than Shred as the second special in
+        ## a standard cycle, provided a bonus like 2pT6 is present to bring the
+        ## Mangle Energy cost down to 38 or below so that it can be fit in
+        ## alongside a Shred.
+        #wait_to_mangle = (
+        #    mangle_next
+        #    or ((not self.player.wolfshead) and (mangle_cost <= 38))
+        #)
+        #bite_before_rip_next = (
+        #    bite_before_rip
+        #    and (self.rip_end - next_tick >= self.strategy['bite_time'])
+        #)
+        #prio_bite_over_mangle = (
+        #    self.strategy['bite_over_rip'] or (not mangle_now)
+        #)
+        #time_to_next_tick = next_tick - time
+        #self.waiting_for_tick = True
 
-            # If we are doing the Rip rotation with Bite filler, then there is
-            # a case where we would Bite now if we had enough energy, but once
-            # we gain enough energy to do so, it's too late to Bite relative to
-            # Rip falling off. In this case, we wait for the tick only if we
-            # can Shred or Mangle afterward, and otherwise shift and won't Bite
-            # at all this cycle. Returning 0.0 is the same thing as waiting for
-            # the next tick, so this logic could be written differently if
-            # desired to match the rest of the rotation code, where waiting for
-            # tick is handled implicitly instead.
-            if ((energy >= 22) and bite_before_rip
-                    and (not bite_before_rip_next)):
-                wait = True
-            elif ((energy >= 15) and
-                    ((not bite_before_rip)
-                     or bite_before_rip_next or bite_at_end)):
-                wait = True
-            elif (not rip_next) and ((energy < 20) or (not mangle_next)):
-                wait = False
-                self.innervate_or_shift(time)
-            else:
-                wait = True
+        #if self.player.mana < self.player.shift_cost:
+        #    # If this is the first time we're oom, log it
+        #    if self.time_to_oom is None:
+        #        self.time_to_oom = time
 
-            if wait and (time_to_next_tick > self.strategy['max_wait_time']):
-                self.innervate_or_shift(time)
-        elif (energy >= 35 and energy <= self.strategy['bite_trick_max']
-              and self.strategy['use_bite_trick']
-              and (time_to_next_tick > 1 + self.latency)
-              and not self.player.omen_proc
-              and cp >= self.strategy['bite_trick_cp']):
-            return self.player.bite()
-        elif (energy >= 35 and energy < mangle_cost
-              and self.strategy['use_rake_trick']
-              and (time_to_next_tick > 1 + self.latency)
-              and not self.rake_debuff
-              and not self.player.omen_proc):
-            return self.rake(time)
-        elif mangle_now:
-            if (energy < mangle_cost - 20) and (not rip_next):
-                self.innervate_or_shift(time)
-            elif (energy >= mangle_cost) or self.player.omen_proc:
-                return self.mangle(time)
-            elif time_to_next_tick > self.strategy['max_wait_time']:
-                self.innervate_or_shift(time)
-        elif energy >= 22:
-            if self.player.omen_proc:
-                return self.player.shred()
-            # If our energy value is between 50-56 with 2pT6, or 60-61 without,
-            # and we are within 1 second of an Energy tick, then Shredding now
-            # forces us to shift afterwards, whereas we can instead cast two
-            # Mangles instead for higher cpm. This scenario is most relevant
-            # when using a no-Wolfshead rotation with 2pT6, and it will
-            # occur whenever the initial Shred on a cycle misses.
-            if ((energy >= 2*mangle_cost - 20) and (energy < 22 + mangle_cost)
-                    and (time_to_next_tick <= 1.0)
-                    and self.strategy['use_mangle_trick']
-                    and ((not self.strategy['use_rake_trick']
-                          and not self.strategy['use_bite_trick'])
-                         or mangle_cost == 35)):
-                return self.mangle(time)
-            if energy >= 42:
-                return self.player.shred()
-            if ((energy >= mangle_cost)
-                    and (time_to_next_tick > 1.0 + self.latency)):
-                return self.mangle(time)
-            if time_to_next_tick > self.strategy['max_wait_time']:
-                self.innervate_or_shift(time)
-        elif ((not rip_next)
-              and ((energy < mangle_cost - 20) or (not wait_to_mangle))):
-            self.innervate_or_shift(time)
-        elif time_to_next_tick > self.strategy['max_wait_time']:
-            self.innervate_or_shift(time)
+        #    # No-shift rotation
+        #    if (rip_now and ((energy >= 30) or self.player.omen_proc)):
+        #        self.rip(time)
+        #    elif (mangle_now and
+        #          ((energy >= mangle_cost) or self.player.omen_proc)):
+        #        return self.mangle(time)
+        #    elif (bite_now and ((energy >= 35) or self.player.omen_proc)):
+        #        return self.player.bite()
+        #    elif (energy >= 42) or self.player.omen_proc:
+        #        return self.player.shred()
+        #elif energy < 10:
+        #    self.innervate_or_shift(time)
+        #elif rip_now:
+        #    if (energy >= 30) or self.player.omen_proc:
+        #        self.rip(time)
+        #    elif time_to_next_tick > self.strategy['max_wait_time']:
+        #        self.innervate_or_shift(time)
+        #elif (bite_now or bite_at_end) and prio_bite_over_mangle:
+        #    # Decision tree for Bite usage is more complicated, so there is
+        #    # some duplicated logic with the main tree.
+
+        #    # Shred versus Bite decision is the same as vanilla criteria.
+
+        #    # Bite immediately if we'd have to wait for the following cast.
+        #    cutoff_mod = 0 if time_to_next_tick <= 1.0 else 20
+        #    if ((energy >= 57 + cutoff_mod) or
+        #            ((energy >= 15 + cutoff_mod) and self.player.omen_proc)):
+        #        return self.player.shred()
+        #    if energy >= 35:
+        #        return self.player.bite()
+
+        #    # If we are doing the Rip rotation with Bite filler, then there is
+        #    # a case where we would Bite now if we had enough energy, but once
+        #    # we gain enough energy to do so, it's too late to Bite relative to
+        #    # Rip falling off. In this case, we wait for the tick only if we
+        #    # can Shred or Mangle afterward, and otherwise shift and won't Bite
+        #    # at all this cycle. Returning 0.0 is the same thing as waiting for
+        #    # the next tick, so this logic could be written differently if
+        #    # desired to match the rest of the rotation code, where waiting for
+        #    # tick is handled implicitly instead.
+        #    if ((energy >= 22) and bite_before_rip
+        #            and (not bite_before_rip_next)):
+        #        wait = True
+        #    elif ((energy >= 15) and
+        #            ((not bite_before_rip)
+        #             or bite_before_rip_next or bite_at_end)):
+        #        wait = True
+        #    elif (not rip_next) and ((energy < 20) or (not mangle_next)):
+        #        wait = False
+        #        self.innervate_or_shift(time)
+        #    else:
+        #        wait = True
+
+        #    if wait and (time_to_next_tick > self.strategy['max_wait_time']):
+        #        self.innervate_or_shift(time)
+        #elif (energy >= 35 and energy <= self.strategy['bite_trick_max']
+        #      and self.strategy['use_bite_trick']
+        #      and (time_to_next_tick > 1 + self.latency)
+        #      and not self.player.omen_proc
+        #      and cp >= self.strategy['bite_trick_cp']):
+        #    return self.player.bite()
+        #elif (energy >= 35 and energy < mangle_cost
+        #      and self.strategy['use_rake_trick']
+        #      and (time_to_next_tick > 1 + self.latency)
+        #      and not self.rake_debuff
+        #      and not self.player.omen_proc):
+        #    return self.rake(time)
+        #elif mangle_now:
+        #    if (energy < mangle_cost - 20) and (not rip_next):
+        #        self.innervate_or_shift(time)
+        #    elif (energy >= mangle_cost) or self.player.omen_proc:
+        #        return self.mangle(time)
+        #    elif time_to_next_tick > self.strategy['max_wait_time']:
+        #        self.innervate_or_shift(time)
+        #elif energy >= 22:
+        #    if self.player.omen_proc:
+        #        return self.player.shred()
+        #    # If our energy value is between 50-56 with 2pT6, or 60-61 without,
+        #    # and we are within 1 second of an Energy tick, then Shredding now
+        #    # forces us to shift afterwards, whereas we can instead cast two
+        #    # Mangles instead for higher cpm. This scenario is most relevant
+        #    # when using a no-Wolfshead rotation with 2pT6, and it will
+        #    # occur whenever the initial Shred on a cycle misses.
+        #    if ((energy >= 2*mangle_cost - 20) and (energy < 22 + mangle_cost)
+        #            and (time_to_next_tick <= 1.0)
+        #            and self.strategy['use_mangle_trick']
+        #            and ((not self.strategy['use_rake_trick']
+        #                  and not self.strategy['use_bite_trick'])
+        #                 or mangle_cost == 35)):
+        #        return self.mangle(time)
+        #    if energy >= 42:
+        #        return self.player.shred()
+        #    if ((energy >= mangle_cost)
+        #            and (time_to_next_tick > 1.0 + self.latency)):
+        #        return self.mangle(time)
+        #    if time_to_next_tick > self.strategy['max_wait_time']:
+        #        self.innervate_or_shift(time)
+        #elif ((not rip_next)
+        #      and ((energy < mangle_cost - 20) or (not wait_to_mangle))):
+        #    self.innervate_or_shift(time)
+        #elif time_to_next_tick > self.strategy['max_wait_time']:
+        #    self.innervate_or_shift(time)
 
         # Model two types of input latency: (1) When waiting for an energy tick
         # to execute the next special ability, the special will in practice be
@@ -1482,6 +1455,24 @@ class Simulation():
         )
         self.update_swing_times(time, new_swing_timer)
 
+    def apply_tigers_fury(self, time):
+        """Apply Tiger's Fury buff and document if requested.
+
+        Arguments:
+            time (float): Simulation time when Tiger's Fury is cast, in
+                seconds
+        """
+        self.player.energy = min(100, self.player.energy + 60)
+        self.params['tigers_fury'] = True
+        self.player.calc_damage_params(**self.params)
+        self.tf_end = time + 6.
+        self.player.tf_cd = 30.
+
+        if self.log:
+            self.combat_log.append(
+                self.gen_log(time, "Tiger's Fury", 'applied')
+            )
+
     def drop_tigers_fury(self, time):
         """Remove Tiger's Fury buff and document if requested.
 
@@ -1520,7 +1511,7 @@ class Simulation():
         """
         # Reset player to fresh fight
         self.player.reset()
-        self.innervate_threshold = 2 * self.player.shift_cost + 95
+        self.innervate_threshold = self.player.shift_cost + 2237 #GotW cost
         self.mangle_debuff = False
         self.rip_debuff = False
         self.rake_debuff = False
@@ -1534,15 +1525,6 @@ class Simulation():
         else:
             self.player.log = False
 
-        # Fight begins at a random time relative to energy tick. Since we start
-        # at 100 energy, let's random roll the time of the next tick.
-        energy_tick_start = 2.02 * np.random.rand()
-
-        # Create array of energy tick times
-        energy_tick_times = list(np.arange(
-            energy_tick_start, self.fight_length + 2.02, 2.02
-        ))
-
         # Same thing for swing times, except that the first swing will occur at
         # most 100 ms after the first special just to simulate some latency and
         # avoid errors from Omen procs on the first swing.
@@ -1554,32 +1536,20 @@ class Simulation():
         # Adjust damage calculation if Tiger's Fury is pre-popped, and
         # calculate when it should fall off for the specified strategy. Assume
         # TF is popped 100 ms before the appropriate energy tick.
-        if self.strategy['prepop_TF']:
-            tf_end = (
-                energy_tick_start - 0.1 + 6
-                - 2.02 * self.strategy['prepop_numticks']
-            )
-            self.player.energy -= 9.8 * (2 - self.strategy['prepop_numticks'])
-            self.params['tigers_fury'] = True
-            self.player.calc_damage_params(**self.params)
-        else:
-            self.params['tigers_fury'] = False
-
-        # Determine whether MCP will be used, and activate it if so
-        self.num_mcp = self.max_mcp
-
-        if self.num_mcp >= 1:
-            self.mcp_equipped = True
-            mcp_active = True
-            mcp_end = 90.0
-            self.num_mcp -= 1
-            self.mcp_cd = 0.0
-            self.proc_end_times = [mcp_end]
-        else:
-            self.mcp_equipped = False
-            self.proc_end_times = []
+        #if self.strategy['prepop_TF']:
+        #    tf_end = (
+        #        energy_tick_start - 0.1 + 6
+        #        - 2.02 * self.strategy['prepop_numticks']
+        #    )
+        #    self.player.energy -= 9.8 * (2 - self.strategy['prepop_numticks'])
+        #    self.params['tigers_fury'] = True
+        #    self.player.calc_damage_params(**self.params)
+        #else:
+        #    self.params['tigers_fury'] = False
 
         # Reset all trinkets to fresh state
+        self.proc_end_times = []
+
         for trinket in self.trinkets:
             trinket.reset()
 
@@ -1609,11 +1579,14 @@ class Simulation():
         previous_time = 0.0
 
         while time <= self.fight_length:
+            # Update player Mana and Energy based on elapsed simulation time
+            delta_t = time - previous_time
+            self.player.regen(delta_t)
+
             # Tabulate all damage sources in this timestep
             dmg_done = 0.0
 
             # Decrement cooldowns by time since last event
-            delta_t = time - previous_time
             self.player.gcd = max(0.0, self.player.gcd - delta_t)
             self.player.omen_icd = max(0.0, self.player.omen_icd - delta_t)
             self.player.rune_cd = max(0.0, self.player.rune_cd - delta_t)
@@ -1621,9 +1594,7 @@ class Simulation():
             self.player.innervate_cd = max(
                 0.0, self.player.innervate_cd - delta_t
             )
-
-            if self.mcp_equipped:
-                self.mcp_cd = max(0.0, self.mcp_cd - delta_t)
+            self.player.tf_cd = max(0.0, self.player.tf_cd - delta_t)
 
             if (self.player.five_second_rule
                     and (time - self.player.last_cast_time >= 5)):
@@ -1632,6 +1603,8 @@ class Simulation():
             # Check if Innervate fell off
             if self.player.innervated and (time >= self.player.innervate_end):
                 self.player.innervated = False
+                self.player.regen_rates['base'] -= 2.25*3496/10
+                self.player.regen_rates['five_second_rule'] -= 2.25*3496/10
 
                 if self.log:
                     self.combat_log.append(self.gen_log(
@@ -1639,29 +1612,8 @@ class Simulation():
                     ))
 
             # Check if Tiger's Fury fell off
-            if self.params['tigers_fury'] and (time >= tf_end):
-                self.drop_tigers_fury(tf_end)
-
-            # Check if haste buff is expired or if a new one can be popped
-            if self.mcp_equipped and mcp_active and (time > mcp_end - 1e-9):
-                mcp_active = False
-                self.mcp_equipped = False
-                self.apply_haste_buff(mcp_end, -500)
-
-                if self.log:
-                    self.combat_log.append(self.gen_log(
-                        mcp_end, 'Haste', 'falls off'
-                    ))
-            elif self.mcp_equipped and (not mcp_active) and (self.mcp_cd == 0):
-                mcp_active = True
-                self.apply_haste_buff(time, 500)
-                mcp_end = time + 90.0
-                self.proc_end_times.append(mcp_end)
-
-                if self.log:
-                    self.combat_log.append(
-                        self.gen_log(time, 'Haste', 'applied')
-                    )
+            if self.params['tigers_fury'] and (time >= self.tf_end):
+                self.drop_tigers_fury(self.tf_end)
 
             # Check if Mangle fell off
             if self.mangle_debuff and (time >= self.mangle_end):
@@ -1675,6 +1627,13 @@ class Simulation():
             # Check if a Rip tick happens at this time
             if self.rip_debuff and (time >= self.rip_ticks[0]):
                 tick_damage = self.rip_damage * (1 + 0.3 * self.mangle_debuff)
+
+                if self.player.primal_gore:
+                    tick_damage = calc_yellow_damage(
+                        tick_damage, tick_damage, 0.0, self.player.crit_chance,
+                        self.player.meta
+                    )
+
                 dmg_done += tick_damage
                 rip_damage += tick_damage
                 self.rip_ticks.pop(0)
@@ -1728,22 +1687,12 @@ class Simulation():
                         ['%.3f' % time] + self.player.combat_log
                     )
 
-            # Check if an energy/spirit tick happens at this time
-            if time == energy_tick_times[0]:
-                self.player.energy = (
-                    min(100, self.player.energy + 20.2) * self.player.cat_form
-                )
-                self.player.regen_mana()
-                energy_tick_times.pop(0)
-
-                if self.log:
-                    self.combat_log.append(
-                        self.gen_log(time, 'energy tick', '')
-                    )
-
             # Check if a Fel Mana Potion tick happens at this time
             if self.player.pot_active and (time == self.player.pot_ticks[0]):
-                self.player.regen_mana(pot=True)
+                mana_regen = 400 * self.player.mana_pot_multi
+                self.player.mana = min(
+                    self.player.mana + mana_regen, self.player.mana_pool
+                )
                 self.player.pot_ticks.pop(0)
 
                 if self.log:
@@ -1759,9 +1708,6 @@ class Simulation():
                     self.combat_log.append(self.gen_log(
                         self.player.pot_end, 'Fel Mana', 'falls off'
                     ))
-
-            # Determine next energy tick
-            next_tick = energy_tick_times[0]
 
             # Check if we're able to act, and if so execute the optimal cast.
             self.player.combat_log = None

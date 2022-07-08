@@ -284,21 +284,6 @@ class HastePotion(ActivatedTrinket):
             self, 'haste_rating', 400, 'Haste Potion', 15, 120, delay=delay
         )
 
-    def update(self, time, player, sim):
-        """Check for possible deactivation of the haste buff, or if the potion
-        has come off cooldown.
-
-        Arguments:
-            time (float): Simulation time, in seconds.
-            player (tbc_cat_sim.Player): Player object executing the DPS
-                rotation.
-            sim (tbc_cat_sim.Simulation): Simulation object controlling the
-                fight execution.
-        """
-        return ActivatedTrinket.update(
-            self, time, player, sim, allow_activation=False
-        )
-
 
 class Bloodlust(ActivatedTrinket):
     """Similar to haste pots, the trinket framework works perfectly for Lust as
@@ -326,16 +311,16 @@ class Bloodlust(ActivatedTrinket):
             sim (tbc_cat_sim.Simulation): Simulation object controlling the
                 fight execution.
         """
-        old_multiplier = 1.3 if self.active else 1.0
+        old_multi = sim.haste_multiplier
         haste_rating = ccs.calc_haste_rating(
-            sim.swing_timer, multiplier=old_multiplier
+            sim.swing_timer, multiplier=old_multi
         )
-        new_multiplier = 1.0 if self.active else 1.3
+        new_multi = old_multi/1.3 if self.active else old_multi*1.3
         new_swing_timer = ccs.calc_swing_timer(
-            haste_rating, multiplier=new_multiplier
+            haste_rating, multiplier=new_multi
         )
         sim.update_swing_times(time, new_swing_timer)
-        sim.haste_multiplier = new_multiplier
+        sim.haste_multiplier = new_multi
 
 
 class ProcTrinket(Trinket):

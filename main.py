@@ -931,7 +931,10 @@ app.layout = html.Div([
 
 
 # Helper functions used in master callback
-def process_trinkets(trinket_1, trinket_2, player, ap_mod, stat_mod, cd_delay):
+def process_trinkets(
+        trinket_1, trinket_2, player, ap_mod, stat_mod, haste_multiplier,
+        cd_delay
+):
     proc_trinkets = []
     all_trinkets = []
 
@@ -954,13 +957,16 @@ def process_trinkets(trinket_1, trinket_2, player, ap_mod, stat_mod, cd_delay):
                 # additionally modify crit here
                 setattr(
                     player, 'crit_chance',
-                    getattr(player, 'crit_chance') + increment / 25. / 100.
+                    getattr(player, 'crit_chance') + increment / 40. / 100.
                 )
             if stat == 'attack_power':
                 increment *= ap_mod
             if stat == 'haste_rating':
+                new_haste_rating = increment + ccs.calc_haste_rating(
+                    player.swing_timer, multiplier=haste_multiplier
+                )
                 new_swing_timer = ccs.calc_swing_timer(
-                    ccs.calc_haste_rating(player.swing_timer) + increment,
+                    new_haste_rating, multiplier=haste_multiplier
                 )
                 player.swing_timer = new_swing_timer
                 continue
@@ -979,7 +985,7 @@ def process_trinkets(trinket_1, trinket_2, player, ap_mod, stat_mod, cd_delay):
             agi_increment = active_stats['stat_increment']
             active_stats['stat_increment'] = np.array([
                 stat_mod * agi_increment * ap_mod,
-                stat_mod * agi_increment/25./100.
+                stat_mod * agi_increment/40./100.
             ])
         if active_stats['stat_name'] == 'Strength':
             active_stats['stat_name'] = 'attack_power'
@@ -1081,8 +1087,9 @@ def create_player(
         expertise_rating=expertise_rating, crit_chance=encounter_crit / 100,
         swing_timer=buffed_swing_timer, mana=buffed_mana_pool,
         intellect=buffed_int, spirit=buffed_spirit, mp5=encounter_mp5,
-        omen='omen' in binary_talents, feral_aggression=int(feral_aggression),
-        savage_fury=int(savage_fury),
+        omen='omen' in binary_talents,
+        primal_gore='primal_gore' in binary_talents,
+        feral_aggression=int(feral_aggression), savage_fury=int(savage_fury),
         natural_shapeshifter=int(natural_shapeshifter),
         intensity=int(intensity), weapon_speed=weapon_speed,
         bonus_damage=encounter_weapon_damage, multiplier=damage_multiplier,
@@ -1093,7 +1100,7 @@ def create_player(
         pot=potion in ['super', 'fel'], cheap_pot=(potion == 'super'),
         shred_bonus=shred_bonus, debuff_ap=debuff_ap
     )
-    return player, ap_mod, (1 + 0.1 * kings) * 1.03, haste_multiplier
+    return player, ap_mod, (1 + 0.1 * kings) * 1.06 * 1.02, haste_multiplier
 
 
 def apply_buffs(
@@ -1524,7 +1531,8 @@ def compute(
 
     # Process trinkets
     trinket_list = process_trinkets(
-        trinket_1, trinket_2, player, ap_mod, stat_mod, cd_delay
+        trinket_1, trinket_2, player, ap_mod, stat_mod, haste_multiplier,
+        cd_delay
     )
 
     # Default output is just the buffed player stats with no further calcs
@@ -1564,7 +1572,7 @@ def compute(
             chance_on_hit=0.85, stat_name=['attack_power', 'crit_chance'],
             stat_increment=np.array([
                 65. * stat_mod * ap_mod,
-                65. * stat_mod / 25. / 100.,
+                65. * stat_mod / 40. / 100.,
             ]),
             proc_duration=10, cooldown=10, proc_name='Primal Instinct',
             mangle_only=True
@@ -1581,17 +1589,14 @@ def compute(
         player.proc_trinkets.append(idol)
 
     if potion == 'haste':
-        haste_pot = trinkets.HastePotion(delay=cd_delay)
-    else:
-        haste_pot = None
+        trinket_list.append(trinkets.HastePotion(delay=cd_delay))
 
     sim = ccs.Simulation(
         player, fight_length + 1e-9, 0.001 * latency, boss_armor=boss_armor,
         min_combos_for_rip=rip_combos, min_combos_for_bite=int(bite_cp),
         use_innervate=bool(use_innervate), use_rake=bool(use_rake),
         use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
-        trinkets=trinket_list, haste_pot=haste_pot,
-        haste_multiplier=haste_multiplier
+        trinkets=trinket_list, haste_multiplier=haste_multiplier
     )
     sim.set_active_debuffs(boss_debuffs)
     player.calc_damage_params(**sim.params)
