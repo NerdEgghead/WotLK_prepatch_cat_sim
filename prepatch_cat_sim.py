@@ -199,6 +199,8 @@ class Player():
         self._expertise_rating = value
         self.calc_miss_chance()
 
+    # Implement all ability costs as read-only properties here.
+
     def __init__(
             self, attack_power, hit_chance, expertise_rating, crit_chance,
             armor_pen_rating, swing_timer, mana, intellect, spirit, mp5,
@@ -393,10 +395,10 @@ class Player():
         self.multiplier = armor_multiplier * damage_multiplier
         self.white_low = (43.5 + bonus_damage) * self.multiplier
         self.white_high = (66.5 + bonus_damage) * self.multiplier
-        self.shred_low = (
+        self.shred_low = 1.2 * (
             self.white_low * 2.25 + (405 + self.shred_bonus) * self.multiplier
         )
-        self.shred_high = (
+        self.shred_high = 1.2 * (
             self.white_high * 2.25 + (405 + self.shred_bonus) * self.multiplier
         )
         self.bite_multiplier = (
@@ -471,20 +473,22 @@ class Player():
         ]:
             self.dmg_breakdown[cast_type] = {'casts': 0, 'damage': 0.0}
 
-    def check_omen_proc(self, yellow=False):
+    def check_omen_proc(self, yellow=False, spell=False):
         """Check for Omen of Clarity proc on a successful swing.
 
         Arguments:
             yellow (bool): Check proc for a yellow ability rather than a melee
                 swing. Defaults False.
+            spell (bool): Check proc for a spell cast rather than a melee
+                swing or ability. Defaults False.
         """
-        if not self.omen:
+        if (not self.omen) or yellow:
             return
-        if self.omen_icd > 1e-9:
+        if spell and (self.omen_icd > 1e-9):
             return
 
-        if yellow:
-            proc_rate = self.omen_rates['yellow']
+        if spell:
+            proc_rate = self.omen_rates['spell']
         else:
             proc_rate = self.omen_rates['white']
 
@@ -492,7 +496,9 @@ class Player():
 
         if proc_roll < proc_rate:
             self.omen_proc = True
-            self.omen_icd = 10.0
+
+            if spell:
+                self.omen_icd = 10.0
 
     def check_jow_proc(self):
         """Check for a Judgment Wisdom on a successful melee attack."""
@@ -502,7 +508,7 @@ class Player():
         proc_roll = np.random.rand()
 
         if proc_roll < 0.5:
-            self.mana = min(self.mana + 74, self.mana_pool)
+            self.mana = min(self.mana + 70, self.mana_pool)
 
     def check_t4_proc(self):
         """Check for a 2p-T4 energy proc on a successful melee attack."""
@@ -650,7 +656,7 @@ class Player():
                     damage_str += ' (T4 proc)'
 
         self.combat_log = [
-            ability_name, damage_str, '%d' % self.energy,
+            ability_name, damage_str, '%.1f' % self.energy,
             '%d' % self.combo_points, '%d' % self.mana
         ]
 
@@ -713,10 +719,10 @@ class Player():
         Returns:
             damage_done (float): Damage done by the Shred cast.
         """
-        damage_done, _ = self.execute_builder(
+        damage_done, success = self.execute_builder(
             'Shred', self.shred_low, self.shred_high, 42, mangle_mod=True
         )
-        return damage_done
+        return damage_done, success # Rend and Tear
 
     def rake(self):
         """Execute a Rake.
@@ -775,18 +781,24 @@ class Player():
             self.energy -= 35
 
         # Update Bite damage based on excess energy available
-        bonus_damage = self.energy * 4.1 * self.bite_multiplier
+        bonus_damage = (
+            min(self.energy, 30) * (3.4 + self.attack_power / 410.)
+            * self.bite_multiplier
+        )
 
         # Perform Monte Carlo
         damage_done, miss, crit = calc_yellow_damage(
             self.bite_low[self.combo_points] + bonus_damage,
             self.bite_high[self.combo_points] + bonus_damage, self.miss_chance,
-            self.crit_chance, self.meta
+            self.crit_chance + 0.25, self.meta
         )
 
         # Consume energy pool and combo points on successful Bite
-        self.energy *= miss
-        self.combo_points *= miss
+        if miss:
+            self.energy += 0.8 * 35 * (not clearcast)
+        else:
+            self.energy = 0
+            self.combo_points = 0
 
         # Set GCD
         self.gcd = 1.0
@@ -824,7 +836,7 @@ class Player():
         if clearcast:
             self.omen_proc = False
         else:
-            self.energy -= 30
+            self.energy -= 30 * (1 - 0.8 * miss)
 
         # Consume combo points on successful cast
         self.combo_points *= miss
@@ -835,7 +847,7 @@ class Player():
 
         # Log the cast and total damage that will be done
         self.dmg_breakdown['Rip']['casts'] += 1
-        self.dmg_breakdown['Rip']['damage'] += damage_per_tick * 6
+        self.dmg_breakdown['Rip']['damage'] += damage_per_tick * 8
 
         if self.log:
             self.gen_log('Rip', 'applied', miss, False, clearcast)
@@ -1067,7 +1079,7 @@ class Simulation():
             outcome (str): Second "outcome" field for the log entry.
         """
         return [
-            '%.3f' % time, event, outcome, '%d' % self.player.energy,
+            '%.3f' % time, event, outcome, '%.1f' % self.player.energy,
             '%d' % self.player.combo_points, '%d' % self.player.mana
         ]
 
@@ -1133,7 +1145,7 @@ class Simulation():
         if success:
             self.mangle_debuff = True
             self.mangle_end = (
-                np.inf if self.strategy['bear_mangle'] else (time + 12.0)
+                np.inf if self.strategy['bear_mangle'] else (time + 60.0)
             )
 
         return damage_done
@@ -1168,19 +1180,36 @@ class Simulation():
 
         if success:
             self.rip_debuff = True
-            self.rip_end = time + 12.0
-            self.rip_ticks = list(np.arange(time + 2, time + 12.01, 2))
+            self.rip_start = time
+            self.rip_end = time + 16.0
+            self.rip_ticks = list(np.arange(time + 2, time + 16.01, 2))
             self.rip_damage = damage_per_tick
 
-        self.waiting_for_tick = False
+        self.waiting_for_energy = False
+        return 0.0
 
-    def execute_rotation(self, time, next_tick):
+    def shred(self):
+        """Instruct Player to Shred, and perform related bookkeeping.
+
+        Returns:
+            damage_done (Float): Damage done by Shred cast.
+        """
+        damage_done, success = self.player.shred()
+
+        # If it landed, apply Glyph of Shred
+        if success and self.rip_debuff:
+            if (self.rip_end - self.rip_start) < 22:
+                self.rip_end += 2
+                self.rip_ticks.append(self.rip_end)
+
+        return damage_done
+
+    def execute_rotation(self, time):
         """Execute the next player action in the DPS rotation according to the
         specified player strategy in the simulation.
 
         Arguments:
             time (float): Current simulation time in seconds.
-            next_tick (float): Time of next energy tick, in seconds.
 
         Returns:
             damage_done (float): Damage done by the player action.
@@ -1223,18 +1252,31 @@ class Simulation():
             and (self.rip_end - time >= self.strategy['bite_time'])
         )
         bite_now = (
-            (bite_before_rip or bite_at_end)
-            and (cp >= bite_cp)
+            (bite_before_rip or bite_at_end) and (cp >= bite_cp)
+            and (not self.player.omen_proc)
         )
 
-        rake_now = (self.strategy['use_rake']) and (not self.rake_debuff)
+        rake_now = (
+            (self.strategy['use_rake']) and (not self.rake_debuff)
+            and (self.fight_length - time > 9)
+        )
 
         # First figure out how much Energy we must float in order to be able
         # to refresh our buffs/debuffs as soon as they fall off
+        pending_actions = []
+
+        if self.rip_debuff and (self.rip_end < self.fight_length - end_thresh):
+            pending_actions.append((self.rip_end, 30))
+        if self.rake_debuff and (self.rake_end < self.fight_length - 9):
+            pending_actions.append((self.rake_end, 35))
+        if self.mangle_debuff and (self.mangle_end < self.fight_length - 1):
+            pending_actions.append((self.mangle_end, mangle_cost))
+
+        pending_actions.sort()
         floating_energy = 0
         previous_time = time
 
-        for refresh_time, refresh_cost in self.pending_actions:
+        for refresh_time, refresh_cost in pending_actions:
             delta_t = refresh_time - previous_time
 
             if delta_t < refresh_cost / 10.:
@@ -1244,7 +1286,7 @@ class Simulation():
                 previous_time += refresh_cost / 10.
 
         excess_energy = energy - floating_energy
-        self.waiting_for_energy = True
+        time_to_next_action = 0.0
 
         # If we have less than 30 Energy, then use Tiger's
         # Fury if it is off cooldown.
@@ -1252,158 +1294,34 @@ class Simulation():
             self.apply_tigers_fury(time)
         elif rip_now:
             if (energy >= 30) or self.player.omen_proc:
-                self.rip(time)
-        elif bite_now:
+                return self.rip(time)
+            else:
+                time_to_next_action = (30. - energy) / 10.
+        elif mangle_now:
+            if (energy >= mangle_cost) or self.player.omen_proc:
+                return self.mangle(time)
+            time_to_next_action = (mangle_cost - energy) / 10.
+        elif rake_now:
+            if (energy >= 35) or self.player.omen_proc:
+                return self.rake(time)
+            time_to_next_action = (35. - energy) / 10.
+        elif bite_now and (energy <= 65) and (floating_energy == 0):
+            if energy >= 35:
+                return self.player.bite()
+            time_to_next_action = (35. - energy) / 10.
+        else:
+            if (excess_energy >= 42) or self.player.omen_proc:
+                return self.shred()
+            time_to_next_action = (42. - excess_energy) / 10.
 
 
-        #rip_next = (
-        #    (rip_now or ((cp >= rip_cp) and (self.rip_end <= next_tick)))
-        #    and (self.fight_length - next_tick >= end_thresh)
-        #)
-        #mangle_next = (
-        #    (not rip_next) and (mangle_now or (self.mangle_end <= next_tick))
-        #)
-        ## 12/2/21 - Added wait_to_mangle parameter that tells us whether we
-        ## should wait for the next Energy tick and cast Mangle, assuming we
-        ## are less than a tick's worth of Energy from being able to cast it. In
-        ## a standard Wolfshead rotation, wait_for_mangle is identical to
-        ## mangle_next, i.e. we only wait for the tick if Mangle will have
-        ## fallen off before the next tick. In a no-Wolfshead rotation, however,
-        ## it is preferable to Mangle rather than Shred as the second special in
-        ## a standard cycle, provided a bonus like 2pT6 is present to bring the
-        ## Mangle Energy cost down to 38 or below so that it can be fit in
-        ## alongside a Shred.
-        #wait_to_mangle = (
-        #    mangle_next
-        #    or ((not self.player.wolfshead) and (mangle_cost <= 38))
-        #)
-        #bite_before_rip_next = (
-        #    bite_before_rip
-        #    and (self.rip_end - next_tick >= self.strategy['bite_time'])
-        #)
-        #prio_bite_over_mangle = (
-        #    self.strategy['bite_over_rip'] or (not mangle_now)
-        #)
-        #time_to_next_tick = next_tick - time
-        #self.waiting_for_tick = True
+        # Model in latency when waiting on Energy for our next action
+        next_action = time + time_to_next_action
 
-        #if self.player.mana < self.player.shift_cost:
-        #    # If this is the first time we're oom, log it
-        #    if self.time_to_oom is None:
-        #        self.time_to_oom = time
+        if pending_actions:
+            next_action = min(next_action, pending_actions[0][0])
 
-        #    # No-shift rotation
-        #    if (rip_now and ((energy >= 30) or self.player.omen_proc)):
-        #        self.rip(time)
-        #    elif (mangle_now and
-        #          ((energy >= mangle_cost) or self.player.omen_proc)):
-        #        return self.mangle(time)
-        #    elif (bite_now and ((energy >= 35) or self.player.omen_proc)):
-        #        return self.player.bite()
-        #    elif (energy >= 42) or self.player.omen_proc:
-        #        return self.player.shred()
-        #elif energy < 10:
-        #    self.innervate_or_shift(time)
-        #elif rip_now:
-        #    if (energy >= 30) or self.player.omen_proc:
-        #        self.rip(time)
-        #    elif time_to_next_tick > self.strategy['max_wait_time']:
-        #        self.innervate_or_shift(time)
-        #elif (bite_now or bite_at_end) and prio_bite_over_mangle:
-        #    # Decision tree for Bite usage is more complicated, so there is
-        #    # some duplicated logic with the main tree.
-
-        #    # Shred versus Bite decision is the same as vanilla criteria.
-
-        #    # Bite immediately if we'd have to wait for the following cast.
-        #    cutoff_mod = 0 if time_to_next_tick <= 1.0 else 20
-        #    if ((energy >= 57 + cutoff_mod) or
-        #            ((energy >= 15 + cutoff_mod) and self.player.omen_proc)):
-        #        return self.player.shred()
-        #    if energy >= 35:
-        #        return self.player.bite()
-
-        #    # If we are doing the Rip rotation with Bite filler, then there is
-        #    # a case where we would Bite now if we had enough energy, but once
-        #    # we gain enough energy to do so, it's too late to Bite relative to
-        #    # Rip falling off. In this case, we wait for the tick only if we
-        #    # can Shred or Mangle afterward, and otherwise shift and won't Bite
-        #    # at all this cycle. Returning 0.0 is the same thing as waiting for
-        #    # the next tick, so this logic could be written differently if
-        #    # desired to match the rest of the rotation code, where waiting for
-        #    # tick is handled implicitly instead.
-        #    if ((energy >= 22) and bite_before_rip
-        #            and (not bite_before_rip_next)):
-        #        wait = True
-        #    elif ((energy >= 15) and
-        #            ((not bite_before_rip)
-        #             or bite_before_rip_next or bite_at_end)):
-        #        wait = True
-        #    elif (not rip_next) and ((energy < 20) or (not mangle_next)):
-        #        wait = False
-        #        self.innervate_or_shift(time)
-        #    else:
-        #        wait = True
-
-        #    if wait and (time_to_next_tick > self.strategy['max_wait_time']):
-        #        self.innervate_or_shift(time)
-        #elif (energy >= 35 and energy <= self.strategy['bite_trick_max']
-        #      and self.strategy['use_bite_trick']
-        #      and (time_to_next_tick > 1 + self.latency)
-        #      and not self.player.omen_proc
-        #      and cp >= self.strategy['bite_trick_cp']):
-        #    return self.player.bite()
-        #elif (energy >= 35 and energy < mangle_cost
-        #      and self.strategy['use_rake_trick']
-        #      and (time_to_next_tick > 1 + self.latency)
-        #      and not self.rake_debuff
-        #      and not self.player.omen_proc):
-        #    return self.rake(time)
-        #elif mangle_now:
-        #    if (energy < mangle_cost - 20) and (not rip_next):
-        #        self.innervate_or_shift(time)
-        #    elif (energy >= mangle_cost) or self.player.omen_proc:
-        #        return self.mangle(time)
-        #    elif time_to_next_tick > self.strategy['max_wait_time']:
-        #        self.innervate_or_shift(time)
-        #elif energy >= 22:
-        #    if self.player.omen_proc:
-        #        return self.player.shred()
-        #    # If our energy value is between 50-56 with 2pT6, or 60-61 without,
-        #    # and we are within 1 second of an Energy tick, then Shredding now
-        #    # forces us to shift afterwards, whereas we can instead cast two
-        #    # Mangles instead for higher cpm. This scenario is most relevant
-        #    # when using a no-Wolfshead rotation with 2pT6, and it will
-        #    # occur whenever the initial Shred on a cycle misses.
-        #    if ((energy >= 2*mangle_cost - 20) and (energy < 22 + mangle_cost)
-        #            and (time_to_next_tick <= 1.0)
-        #            and self.strategy['use_mangle_trick']
-        #            and ((not self.strategy['use_rake_trick']
-        #                  and not self.strategy['use_bite_trick'])
-        #                 or mangle_cost == 35)):
-        #        return self.mangle(time)
-        #    if energy >= 42:
-        #        return self.player.shred()
-        #    if ((energy >= mangle_cost)
-        #            and (time_to_next_tick > 1.0 + self.latency)):
-        #        return self.mangle(time)
-        #    if time_to_next_tick > self.strategy['max_wait_time']:
-        #        self.innervate_or_shift(time)
-        #elif ((not rip_next)
-        #      and ((energy < mangle_cost - 20) or (not wait_to_mangle))):
-        #    self.innervate_or_shift(time)
-        #elif time_to_next_tick > self.strategy['max_wait_time']:
-        #    self.innervate_or_shift(time)
-
-        # Model two types of input latency: (1) When waiting for an energy tick
-        # to execute the next special ability, the special will in practice be
-        # slightly delayed after the tick arrives. (2) When executing a
-        # powershift without clipping the GCD, the shift will in practice be
-        # slightly delayed after the GCD ends.
-        if self.waiting_for_tick:
-            self.player.gcd = time_to_next_tick + self.latency
-        if self.player.ready_to_shift:
-            self.player.gcd = self.latency
+        self.player.gcd = next_action - time + self.latency
 
         return 0.0
 
@@ -1515,6 +1433,7 @@ class Simulation():
         self.mangle_debuff = False
         self.rip_debuff = False
         self.rake_debuff = False
+        self.params['tigers_fury'] = False
 
         # Configure combat logging if requested
         self.log = log
@@ -1532,20 +1451,6 @@ class Simulation():
         self.update_swing_times(
             swing_timer_start, self.player.swing_timer, first_swing=True
         )
-
-        # Adjust damage calculation if Tiger's Fury is pre-popped, and
-        # calculate when it should fall off for the specified strategy. Assume
-        # TF is popped 100 ms before the appropriate energy tick.
-        #if self.strategy['prepop_TF']:
-        #    tf_end = (
-        #        energy_tick_start - 0.1 + 6
-        #        - 2.02 * self.strategy['prepop_numticks']
-        #    )
-        #    self.player.energy -= 9.8 * (2 - self.strategy['prepop_numticks'])
-        #    self.params['tigers_fury'] = True
-        #    self.player.calc_damage_params(**self.params)
-        #else:
-        #    self.params['tigers_fury'] = False
 
         # Reset all trinkets to fresh state
         self.proc_end_times = []
@@ -1629,7 +1534,7 @@ class Simulation():
                 tick_damage = self.rip_damage * (1 + 0.3 * self.mangle_debuff)
 
                 if self.player.primal_gore:
-                    tick_damage = calc_yellow_damage(
+                    tick_damage, _, _ = calc_yellow_damage(
                         tick_damage, tick_damage, 0.0, self.player.crit_chance,
                         self.player.meta
                     )
@@ -1713,7 +1618,7 @@ class Simulation():
             self.player.combat_log = None
 
             if self.player.gcd < 1e-9:
-                dmg_done += self.execute_rotation(time, next_tick)
+                dmg_done += self.execute_rotation(time)
 
             # Append player's log to running combat log
             if self.log and self.player.combat_log:
@@ -1742,14 +1647,12 @@ class Simulation():
             # Update time
             previous_time = time
             next_swing = self.swing_times[0]
-
-            if self.player.gcd > 1e-9:
-                time = min(time + self.player.gcd, next_swing, next_tick)
-            else:
-                time = min(next_swing, next_tick)
+            time = min(time + self.player.gcd, next_swing)
 
             if self.rip_debuff:
                 time = min(time, self.rip_ticks[0])
+            if self.rake_debuff:
+                time = min(time, self.rake_ticks[0])
             if self.player.pot_active:
                 time = min(time, self.player.pot_ticks[0])
             if self.proc_end_times:
