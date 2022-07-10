@@ -461,7 +461,7 @@ iteration_input = dbc.Col([
         ), width='auto'),
         dbc.Col('with', width='auto', id='biteweave_text_1'),
         dbc.Col(dbc.Input(
-            type='number', value=5, id='bite_time', min=0.0, step=0.1,
+            type='number', value=12, id='bite_time', min=0.0, step=0.1,
             style={'marginTop': '-3%', 'marginBottom': '7%', 'width': '40%'},
         ), width='auto'),
         dbc.Col(

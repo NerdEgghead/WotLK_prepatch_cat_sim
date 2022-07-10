@@ -1270,11 +1270,6 @@ class Simulation():
             and (self.player.tf_cd > 15)
             and (not self.params['tigers_fury'])
         )
-        tf_now = (
-            # (energy < 40 - 10 * self.latency - 10 * self.player.omen_proc)
-            (energy < 30)
-            and (self.player.tf_cd < 1e-9) and (not self.player.berserk)
-        )
 
         # First figure out how much Energy we must float in order to be able
         # to refresh our buffs/debuffs as soon as they fall off
@@ -1303,11 +1298,7 @@ class Simulation():
         excess_e = energy - floating_energy
         time_to_next_action = 0.0
 
-        # If we have less than 30 Energy, then use Tiger's
-        # Fury if it is off cooldown.
-        if tf_now:
-            self.apply_tigers_fury(time)
-        elif berserk_now:
+        if berserk_now:
             self.apply_berserk(time)
             return 0.0
         elif rip_now:
@@ -1338,7 +1329,7 @@ class Simulation():
         if pending_actions:
             next_action = min(next_action, pending_actions[0][0])
 
-        self.player.gcd = next_action - time + self.latency
+        self.next_action = next_action + self.latency
 
         return 0.0
 
@@ -1402,6 +1393,9 @@ class Simulation():
         self.player.calc_damage_params(**self.params)
         self.tf_end = time + 6.
         self.player.tf_cd = 30.
+        self.next_action = time + self.latency
+        self.proc_end_times.append(time + 30.)
+        self.proc_end_times.sort()
 
         if self.log:
             self.combat_log.append(
@@ -1486,6 +1480,7 @@ class Simulation():
         self.rip_debuff = False
         self.rake_debuff = False
         self.params['tigers_fury'] = False
+        self.next_action = 0.0
 
         # Configure combat logging if requested
         self.log = log
@@ -1674,7 +1669,7 @@ class Simulation():
             # Check if we're able to act, and if so execute the optimal cast.
             self.player.combat_log = None
 
-            if self.player.gcd < 1e-9:
+            if (self.player.gcd < 1e-9) and (time >= self.next_action):
                 dmg_done += self.execute_rotation(time)
 
             # Append player's log to running combat log
@@ -1695,6 +1690,19 @@ class Simulation():
             if self.proc_end_times and (time == self.proc_end_times[0]):
                 self.proc_end_times.pop(0)
 
+            # If our Energy just dropped low enough, then cast Tiger's Fury
+            #tf_energy_thresh = 30
+            tf_energy_thresh = 40 - 10 * (
+                max(self.player.gcd, self.latency) + self.player.omen_proc
+            )
+            tf_now = (
+                (self.player.energy < tf_energy_thresh)
+                and (self.player.tf_cd < 1e-9) and (not self.player.berserk)
+            )
+
+            if tf_now:
+                self.apply_tigers_fury(time)
+
             # Log current parameters
             times.append(time)
             damage.append(dmg_done)
@@ -1704,7 +1712,8 @@ class Simulation():
             # Update time
             previous_time = time
             next_swing = self.swing_times[0]
-            time = min(time + self.player.gcd, next_swing)
+            next_action = max(time + self.player.gcd, self.next_action)
+            time = min(next_action, next_swing)
 
             if self.rip_debuff:
                 time = min(time, self.rip_ticks[0])
