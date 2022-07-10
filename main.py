@@ -24,20 +24,20 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 server = app.server
 
 default_input_stats = {
-        "agility": 785,
-        "armor": 4531,
+        "agility": 747,
+        "armor": 4455,
         "armorPen": 27.92,
         "armorPenRating": 188,
-        "attackPower": 4320,
-        "crit": 45.17,
+        "attackPower": 4279,
+        "crit": 44.22,
         "critRating": 156,
         "critReduction": 6,
         "defense": 350,
-        "dodge": 44.74,
+        "dodge": 43.09,
         "expertise": 16,
         "expertiseRating": 27,
         "feralAttackPower": 1195,
-        "haste": 4.19,
+        "haste": 5.44,
         "hasteRating": 66,
         "health": 9854,
         "hit": 8.94,
@@ -48,7 +48,7 @@ default_input_stats = {
         "natureResist": 10,
         "parry": 5,
         "spellCrit": 12.07,
-        "spellHaste": 4.19,
+        "spellHaste": 5.44,
         "spellHit": 11.18,
         "spirit": 158,
         "stamina": 642,
@@ -117,8 +117,9 @@ stat_input = dbc.Col([
             {'label': 'Wolfshead Helm', 'value': 'wolfshead'},
             {'label': 'Relentless Earthstorm Diamond', 'value': 'meta'},
             {'label': 'Band of the Eternal Champion', 'value': 'exalted_ring'},
+            {'label': 'Enchant Weapon: Mongoose', 'value': 'mongoose'},
         ],
-        value=['t6_2p', 't6_4p', 'meta'],
+        value=['t6_2p', 't6_4p', 'meta', 'mongoose'],
         id='bonuses'
     ),
     ], width='auto', style={'marginBottom': '2.5%', 'marginLeft': '2.5%'})
@@ -1587,6 +1588,21 @@ def compute(
         )
         trinket_list.append(idol)
         player.proc_trinkets.append(idol)
+    if 'mongoose' in bonuses:
+        mongoose_ppm = 0.73
+        mongoose_enchant = trinkets.RefreshingProcTrinket(
+            stat_name=['attack_power', 'crit_chance', 'haste_rating'],
+            stat_increment=np.array([
+                120. * stat_mod * ap_mod,
+                120. * stat_mod / 40. / 100.,
+                30
+            ]),
+            proc_name='Lightning Speed', chance_on_hit=mongoose_ppm / 60.,
+            yellow_chance_on_hit=mongoose_ppm / 60. * player.weapon_speed,
+            proc_duration=15, cooldown=0
+        )
+        trinket_list.append(mongoose_enchant)
+        player.proc_trinkets.append(mongoose_enchant)
 
     if potion == 'haste':
         trinket_list.append(trinkets.HastePotion(delay=cd_delay))
