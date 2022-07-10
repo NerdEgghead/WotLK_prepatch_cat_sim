@@ -276,13 +276,25 @@ class HastePotion(ActivatedTrinket):
         Arguments:
             delay (float): Minimum elapsed time in the fight before the potion
                 can be used. Can be used to delay the potion activation for
-                armor debuffs going up, etc. Note that the potion will *not* be
-                actually activated at the delay time, only on the subsequent
-                powershift. Defaults to 0.0
+                armor debuffs going up, etc. Defaults to 0.0
         """
         ActivatedTrinket.__init__(
-            self, 'haste_rating', 400, 'Haste Potion', 15, 120, delay=delay
+            self, 'haste_rating', 400, 'Haste Potion', 15, 60, delay=delay
         )
+        self.max_procs = 1 if delay > 1e-9 else 2 # 1 pot per combat in WotLK
+
+    def apply_proc(self):
+        """Determine whether or not the trinket is activated at the current
+        time.
+
+        Returns:
+            proc_applied (bool): Whether or not the activation occurs.
+        """
+        # Adjust standard ActivatedTrinket logic to prevent multiple Haste
+        # Potion activations once combat has commenced.
+        if self.can_proc and (self.num_procs < self.max_procs):
+            return True
+        return False
 
 
 class Bloodlust(ActivatedTrinket):
