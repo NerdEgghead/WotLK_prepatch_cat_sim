@@ -1267,7 +1267,7 @@ class Simulation():
 
         berserk_now = (
             self.strategy['use_berserk'] and (self.player.berserk_cd < 1e-9)
-            and (self.player.tf_cd > 1e-9)
+            and (self.player.tf_cd > 15)
             and (not self.params['tigers_fury'])
         )
         tf_now = (
