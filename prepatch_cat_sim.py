@@ -1267,11 +1267,13 @@ class Simulation():
 
         berserk_now = (
             self.strategy['use_berserk'] and (self.player.berserk_cd < 1e-9)
-            and (self.player.tf_cd > 1e-9) and (not self.params['tigers_fury'])
+            and (self.player.tf_cd > 1e-9)
+            and (not self.params['tigers_fury'])
         )
         tf_now = (
-            (energy < 30) and (self.player.tf_cd < 1e-9)
-            and (not self.player.berserk)
+            # (energy < 40 - 10 * self.latency - 10 * self.player.omen_proc)
+            (energy < 30)
+            and (self.player.tf_cd < 1e-9) and (not self.player.berserk)
         )
 
         # First figure out how much Energy we must float in order to be able
@@ -1437,6 +1439,9 @@ class Simulation():
             self.combat_log.append(
                 self.gen_log(time, 'Berserk', 'applied')
             )
+
+        if self.params['tigers_fury']:
+            self.drop_tigers_fury(time)
 
     def drop_berserk(self, time):
         """Remove Berserk buff and document if requested.
