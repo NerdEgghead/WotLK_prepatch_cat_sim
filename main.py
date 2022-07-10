@@ -460,7 +460,7 @@ iteration_input = dbc.Col([
         ), width='auto'),
         dbc.Col('with', width='auto', id='biteweave_text_1'),
         dbc.Col(dbc.Input(
-            type='number', value=8, id='bite_time', min=0.0, step=0.1,
+            type='number', value=5, id='bite_time', min=0.0, step=0.1,
             style={'marginTop': '-3%', 'marginBottom': '7%', 'width': '40%'},
         ), width='auto'),
         dbc.Col(
@@ -470,7 +470,7 @@ iteration_input = dbc.Col([
     ],),
     dbc.Checklist(
         options=[{'label': ' use Rake', 'value': 'use_rake'}],
-        value=[], id='use_rake'
+        value=['use_rake'], id='use_rake'
     ),
     dbc.Checklist(
         options=[{'label': ' use Innervate', 'value': 'use_innervate'}],
@@ -1596,7 +1596,8 @@ def compute(
         min_combos_for_rip=rip_combos, min_combos_for_bite=int(bite_cp),
         use_innervate=bool(use_innervate), use_rake=bool(use_rake),
         use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
-        trinkets=trinket_list, haste_multiplier=haste_multiplier
+        use_berserk='berserk' in binary_talents, trinkets=trinket_list,
+        haste_multiplier=haste_multiplier
     )
     sim.set_active_debuffs(boss_debuffs)
     player.calc_damage_params(**sim.params)

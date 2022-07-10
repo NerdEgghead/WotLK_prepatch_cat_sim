@@ -292,7 +292,7 @@ class Player():
         self.t4_bonus = t4_bonus
         self.bonus_damage = bonus_damage
         self.shred_bonus = shred_bonus
-        self.mangle_cost = 40 - 5 * t6_2p
+        self._mangle_cost = 40 - 5 * t6_2p
         self.t6_bonus = t6_4p
         self.wolfshead = wolfshead
         self.meta = meta
@@ -462,7 +462,9 @@ class Player():
         self.five_second_rule = False
         self.cat_form = True
         self.t4_proc = False
-        self.ready_to_shift = False
+        self.berserk = False
+        self.berserk_cd = 0.0
+        self.set_ability_costs()
 
         # Create dictionary to hold breakdown of total casts and damage
         self.dmg_breakdown = collections.OrderedDict()
@@ -472,6 +474,15 @@ class Player():
             'Shift'
         ]:
             self.dmg_breakdown[cast_type] = {'casts': 0, 'damage': 0.0}
+
+    def set_ability_costs(self):
+        """Store Energy costs for all specials in the rotation based on whether
+        or not Berserk is active."""
+        self.shred_cost = 42. / (1 + self.berserk)
+        self.rake_cost = 35. / (1 + self.berserk)
+        self.mangle_cost = self._mangle_cost / (1 + self.berserk)
+        self.bite_cost = 35. / (1 + self.berserk)
+        self.rip_cost = 30. / (1 + self.berserk)
 
     def check_omen_proc(self, yellow=False, spell=False):
         """Check for Omen of Clarity proc on a successful swing.
@@ -720,9 +731,10 @@ class Player():
             damage_done (float): Damage done by the Shred cast.
         """
         damage_done, success = self.execute_builder(
-            'Shred', self.shred_low, self.shred_high, 42, mangle_mod=True
+            'Shred', self.shred_low, self.shred_high, self.shred_cost,
+            mangle_mod=True
         )
-        return damage_done, success # Rend and Tear
+        return damage_done, success
 
     def rake(self):
         """Execute a Rake.
@@ -731,20 +743,10 @@ class Player():
             damage_done (float): Damage done by the Rake cast.
         """
         damage_done, success = self.execute_builder(
-            'Rake', self.rake_hit, self.rake_hit, 35, mangle_mod=True
+            'Rake', self.rake_hit, self.rake_hit, self.rake_cost,
+            mangle_mod=True
         )
         return damage_done, success
-
-    def claw(self):
-        """Execute a Claw.
-
-        Returns:
-            damage_done (float): Damage done by the Claw cast.
-        """
-        damage_done, _ = self.execute_builder(
-            'Claw', self.claw_low, self.claw_high, 40
-        )
-        return damage_done
 
     def mangle(self):
         """Execute a Mangle.
@@ -778,7 +780,7 @@ class Player():
         if clearcast:
             self.omen_proc = False
         else:
-            self.energy -= 35
+            self.energy -= self.bite_cost
 
         # Update Bite damage based on excess energy available
         bonus_damage = (
@@ -795,7 +797,7 @@ class Player():
 
         # Consume energy pool and combo points on successful Bite
         if miss:
-            self.energy += 0.8 * 35 * (not clearcast)
+            self.energy += 0.8 * self.bite_cost * (not clearcast)
         else:
             self.energy = 0
             self.combo_points = 0
@@ -836,7 +838,7 @@ class Player():
         if clearcast:
             self.omen_proc = False
         else:
-            self.energy -= 30 * (1 - 0.8 * miss)
+            self.energy -= self.rip_cost * (1 - 0.8 * miss)
 
         # Consume combo points on successful cast
         self.combo_points *= miss
@@ -985,6 +987,7 @@ class Simulation():
         'min_combos_for_bite': 5,
         'use_innervate': True,
         'bear_mangle': False,
+        'use_berserk': False,
     }
 
     def __init__(
@@ -1253,12 +1256,22 @@ class Simulation():
         )
         bite_now = (
             (bite_before_rip or bite_at_end) and (cp >= bite_cp)
+            and (energy <= self.player.bite_cost + 30)
             and (not self.player.omen_proc)
         )
 
         rake_now = (
             (self.strategy['use_rake']) and (not self.rake_debuff)
             and (self.fight_length - time > 9)
+        )
+
+        berserk_now = (
+            self.strategy['use_berserk'] and (self.player.berserk_cd < 1e-9)
+            and (self.player.tf_cd > 1e-9) and (not self.params['tigers_fury'])
+        )
+        tf_now = (
+            (energy < 30) and (self.player.tf_cd < 1e-9)
+            and (not self.player.berserk)
         )
 
         # First figure out how much Energy we must float in order to be able
@@ -1270,7 +1283,7 @@ class Simulation():
         if self.rake_debuff and (self.rake_end < self.fight_length - 9):
             pending_actions.append((self.rake_end, 35))
         if self.mangle_debuff and (self.mangle_end < self.fight_length - 1):
-            pending_actions.append((self.mangle_end, mangle_cost))
+            pending_actions.append((self.mangle_end, self.player._mangle_cost))
 
         pending_actions.sort()
         floating_energy = 0
@@ -1285,35 +1298,37 @@ class Simulation():
             else:
                 previous_time += refresh_cost / 10.
 
-        excess_energy = energy - floating_energy
+        excess_e = energy - floating_energy
         time_to_next_action = 0.0
 
         # If we have less than 30 Energy, then use Tiger's
         # Fury if it is off cooldown.
-        if (energy < 30) and (self.player.tf_cd < 1e-9):
+        if tf_now:
             self.apply_tigers_fury(time)
+        elif berserk_now:
+            self.apply_berserk(time)
+            return 0.0
         elif rip_now:
-            if (energy >= 30) or self.player.omen_proc:
+            if (energy >= self.player.rip_cost) or self.player.omen_proc:
                 return self.rip(time)
             else:
-                time_to_next_action = (30. - energy) / 10.
+                time_to_next_action = (self.player.rip_cost - energy) / 10.
         elif mangle_now:
             if (energy >= mangle_cost) or self.player.omen_proc:
                 return self.mangle(time)
             time_to_next_action = (mangle_cost - energy) / 10.
         elif rake_now:
-            if (energy >= 35) or self.player.omen_proc:
+            if (energy >= self.player.rake_cost) or self.player.omen_proc:
                 return self.rake(time)
-            time_to_next_action = (35. - energy) / 10.
-        elif bite_now and (energy <= 65) and (floating_energy == 0):
-            if energy >= 35:
+            time_to_next_action = (self.player.rake_cost - energy) / 10.
+        elif bite_now and (floating_energy == 0):
+            if energy >= self.player.bite_cost:
                 return self.player.bite()
-            time_to_next_action = (35. - energy) / 10.
+            time_to_next_action = (self.player.bite_cost - energy) / 10.
         else:
-            if (excess_energy >= 42) or self.player.omen_proc:
+            if (excess_e >= self.player.shred_cost) or self.player.omen_proc:
                 return self.shred()
-            time_to_next_action = (42. - excess_energy) / 10.
-
+            time_to_next_action = (self.player.shred_cost - excess_e) / 10.
 
         # Model in latency when waiting on Energy for our next action
         next_action = time + time_to_next_action
@@ -1404,6 +1419,38 @@ class Simulation():
         if self.log:
             self.combat_log.append(
                 self.gen_log(time, "Tiger's Fury", 'falls off')
+            )
+
+    def apply_berserk(self, time):
+        """Apply Berserk buff and document if requested.
+
+        Arguments:
+            time (float): Simulation time when Berserk is cast, in seconds.
+        """
+        self.player.berserk = True
+        self.player.set_ability_costs()
+        self.player.gcd = 1.0
+        self.berserk_end = time + 15.
+        self.player.berserk_cd = 180.
+
+        if self.log:
+            self.combat_log.append(
+                self.gen_log(time, 'Berserk', 'applied')
+            )
+
+    def drop_berserk(self, time):
+        """Remove Berserk buff and document if requested.
+
+        Arguments:
+            time (float): Simulation time when Berserk fell off, in seconds.
+                Used only for logging.
+        """
+        self.player.berserk = False
+        self.player.set_ability_costs()
+
+        if self.log:
+            self.combat_log.append(
+                self.gen_log(time, 'Berserk', 'falls off')
             )
 
     def run(self, log=False):
@@ -1500,6 +1547,7 @@ class Simulation():
                 0.0, self.player.innervate_cd - delta_t
             )
             self.player.tf_cd = max(0.0, self.player.tf_cd - delta_t)
+            self.player.berserk_cd = max(0.0, self.player.berserk_cd - delta_t)
 
             if (self.player.five_second_rule
                     and (time - self.player.last_cast_time >= 5)):
@@ -1519,6 +1567,10 @@ class Simulation():
             # Check if Tiger's Fury fell off
             if self.params['tigers_fury'] and (time >= self.tf_end):
                 self.drop_tigers_fury(self.tf_end)
+
+            # Check if Berserk fell off
+            if self.player.berserk and (time >= self.berserk_end):
+                self.drop_berserk(self.berserk_end)
 
             # Check if Mangle fell off
             if self.mangle_debuff and (time >= self.mangle_end):
