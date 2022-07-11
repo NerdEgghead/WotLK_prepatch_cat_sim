@@ -1024,9 +1024,7 @@ def process_trinkets(
             elif proc_type == 'ppm':
                 ppm = active_stats.pop('proc_rate')
                 active_stats['chance_on_hit'] = ppm/60.
-                active_stats['yellow_chance_on_hit'] = (
-                    ppm/60. * player.weapon_speed
-                )
+                active_stats['yellow_chance_on_hit'] = ppm/60.
 
             if trinket == 'vial':
                 trinket_obj = trinkets.PoisonVial(
@@ -1569,7 +1567,7 @@ def compute(
         ring_ppm = 1.0
         ring = trinkets.ProcTrinket(
             chance_on_hit=ring_ppm / 60.,
-            yellow_chance_on_hit=ring_ppm / 60. * player.weapon_speed,
+            yellow_chance_on_hit=ring_ppm / 60.,
             stat_name='attack_power', stat_increment=160 * ap_mod,
             proc_duration=10, cooldown=60,
             proc_name='Band of the Eternal Champion',
@@ -1606,7 +1604,7 @@ def compute(
                 30
             ]),
             proc_name='Lightning Speed', chance_on_hit=mongoose_ppm / 60.,
-            yellow_chance_on_hit=mongoose_ppm / 60. * player.weapon_speed,
+            yellow_chance_on_hit=mongoose_ppm / 60.,
             proc_duration=15, cooldown=0
         )
         trinket_list.append(mongoose_enchant)
