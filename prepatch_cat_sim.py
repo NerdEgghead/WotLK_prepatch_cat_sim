@@ -1208,6 +1208,30 @@ class Simulation():
 
         return damage_done
 
+    def berserk_expected_at(self, current_time, future_time):
+        """Determine whether the Berserk buff is predicted to be active at
+        the requested future time.
+
+        Arguments:
+            current_time (float): Current simulation time in seconds.
+            future_time (float): Future time, in seconds, for querying Berserk
+                status.
+
+        Returns:
+            berserk_expected (bool): True if Berserk should be active at the
+                specified future time, False otherwise.
+        """
+        if self.player.berserk:
+            return (
+                (future_time < self.berserk_end)
+                or (future_time > current_time + self.player.berserk_cd)
+            )
+        if self.player.berserk_cd > 1e-9:
+            return (future_time > current_time + self.player.berserk_cd)
+        if self.params['tigers_fury']:
+            return (future_time > self.tf_end)
+        return False
+
     def execute_rotation(self, time):
         """Execute the next player action in the DPS rotation according to the
         specified player strategy in the simulation.
@@ -1278,11 +1302,21 @@ class Simulation():
         pending_actions = []
 
         if self.rip_debuff and (self.rip_end < self.fight_length - end_thresh):
-            pending_actions.append((self.rip_end, 30))
+            if self.berserk_expected_at(time, self.rip_end):
+                pending_actions.append((self.rip_end, 15))
+            else:
+                pending_actions.append((self.rip_end, 30))
         if self.rake_debuff and (self.rake_end < self.fight_length - 9):
-            pending_actions.append((self.rake_end, 35))
+            if self.berserk_expected_at(time, self.rake_end):
+                pending_actions.append((self.rake_end, 17.5))
+            else:
+                pending_actions.append((self.rake_end, 35))
         if self.mangle_debuff and (self.mangle_end < self.fight_length - 1):
-            pending_actions.append((self.mangle_end, self.player._mangle_cost))
+            base_cost = self.player._mangle_cost
+            if self.berserk_expected_at(time, self.mangle_end):
+                pending_actions.append((self.mangle_end, 0.5 * base_cost))
+            else:
+                pending_actions.append((self.mangle_end, base_cost))
 
         pending_actions.sort()
         floating_energy = 0
