@@ -799,7 +799,7 @@ class Player():
         if miss:
             self.energy += 0.8 * self.bite_cost * (not clearcast)
         else:
-            self.energy = 0
+            self.energy -= min(self.energy, 30)
             self.combo_points = 0
 
         # Set GCD
@@ -1228,7 +1228,7 @@ class Simulation():
             )
         if self.player.berserk_cd > 1e-9:
             return (future_time > current_time + self.player.berserk_cd)
-        if self.params['tigers_fury']:
+        if self.params['tigers_fury'] and self.strategy['use_berserk']:
             return (future_time > self.tf_end)
         return False
 
@@ -1281,7 +1281,6 @@ class Simulation():
         )
         bite_now = (
             (bite_before_rip or bite_at_end) and (cp >= bite_cp)
-            and (energy <= self.player.bite_cost + 30)
             and (not self.player.omen_proc)
         )
 
