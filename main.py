@@ -461,7 +461,7 @@ iteration_input = dbc.Col([
         ), width='auto'),
         dbc.Col('with', width='auto', id='biteweave_text_1'),
         dbc.Col(dbc.Input(
-            type='number', value=12, id='bite_time', min=0.0, step=0.1,
+            type='number', value=11, id='bite_time', min=0.0, step=0.1,
             style={'marginTop': '-3%', 'marginBottom': '7%', 'width': '40%'},
         ), width='auto'),
         dbc.Col(
@@ -482,6 +482,12 @@ iteration_input = dbc.Col([
             'label': ' Mangle / Trauma maintained by bear tank / Arms warrior',
             'value': 'bear_mangle'
         }], value=[], id='bear_mangle'
+    ),
+    dbc.Checklist(
+        options=[{
+            'label': ' pre-pop Berserk 1 second before combat starts',
+            'value': 'prepop_berserk'
+        }], value=['prepop_berserk'], id='prepop_berserk'
     ),
     html.Br(),
     html.H5('Trinkets'),
@@ -1404,6 +1410,7 @@ def plot_new_trajectory(sim, show_whites):
     State('use_biteweave', 'value'),
     State('bite_time', 'value'),
     State('bear_mangle', 'value'),
+    State('prepop_berserk', 'value'),
     State('num_replicates', 'value'),
     State('latency', 'value'),
     State('calc_mana_weights', 'checked'),
@@ -1416,7 +1423,8 @@ def compute(
         savage_fury, naturalist, natural_shapeshifter, intensity, fight_length,
         boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
         use_rake, use_innervate, use_biteweave, bite_time, bear_mangle,
-        num_replicates, latency, calc_mana_weights, epic_gems, show_whites
+        prepop_berserk, num_replicates, latency, calc_mana_weights, epic_gems,
+        show_whites
 ):
     ctx = dash.callback_context
 
@@ -1612,7 +1620,8 @@ def compute(
         min_combos_for_rip=rip_combos, min_combos_for_bite=int(bite_cp),
         use_innervate=bool(use_innervate), use_rake=bool(use_rake),
         use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
-        use_berserk='berserk' in binary_talents, trinkets=trinket_list,
+        use_berserk='berserk' in binary_talents,
+        prepop_berserk=bool(prepop_berserk), trinkets=trinket_list,
         haste_multiplier=haste_multiplier
     )
     sim.set_active_debuffs(boss_debuffs)

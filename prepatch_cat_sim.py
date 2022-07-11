@@ -988,6 +988,7 @@ class Simulation():
         'use_innervate': True,
         'bear_mangle': False,
         'use_berserk': False,
+        'prepop_berserk': False,
     }
 
     def __init__(
@@ -1418,17 +1419,20 @@ class Simulation():
                 self.gen_log(time, "Tiger's Fury", 'falls off')
             )
 
-    def apply_berserk(self, time):
+    def apply_berserk(self, time, prepop=False):
         """Apply Berserk buff and document if requested.
 
         Arguments:
             time (float): Simulation time when Berserk is cast, in seconds.
+            prepop (bool): Whether Berserk is pre-popped 1 second before the
+                start of combat rather than in the middle of the fight.
+                Defaults False.
         """
         self.player.berserk = True
         self.player.set_ability_costs()
-        self.player.gcd = 1.0
+        self.player.gcd = 1.0 * (not prepop)
         self.berserk_end = time + 15.
-        self.player.berserk_cd = 180.
+        self.player.berserk_cd = 180. - prepop
 
         if self.log:
             self.combat_log.append(
@@ -1511,6 +1515,10 @@ class Simulation():
         if self.strategy['bear_mangle']:
             self.mangle_debuff = True
             self.mangle_end = np.inf
+
+        # Pre-pop Berserk if requested
+        if self.strategy['use_berserk'] and self.strategy['prepop_berserk']:
+            self.apply_berserk(-1.0, prepop=True)
 
         # Create placeholder for time to OOM if the player goes OOM in the run
         self.time_to_oom = None
