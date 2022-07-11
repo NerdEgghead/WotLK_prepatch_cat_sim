@@ -1269,6 +1269,7 @@ class Simulation():
             self.strategy['use_berserk'] and (self.player.berserk_cd < 1e-9)
             and (self.player.tf_cd > 15)
             and (not self.params['tigers_fury'])
+            and (energy < 90 - 10 * self.player.omen_proc)
         )
 
         # First figure out how much Energy we must float in order to be able
