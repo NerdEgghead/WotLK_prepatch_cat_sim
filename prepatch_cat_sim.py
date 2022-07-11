@@ -1287,9 +1287,19 @@ class Simulation():
         pending_actions.sort()
         floating_energy = 0
         previous_time = time
+        #tf_pending = False
 
         for refresh_time, refresh_cost in pending_actions:
             delta_t = refresh_time - previous_time
+
+            #if (not tf_pending):
+            #    if self.player.tf_cd > 1e-9:
+            #        tf_pending = (time + self.player.tf_cd < refresh_time)
+            #    elif self.player.berserk:
+            #        tf_pending = (self.berserk_end < refresh_time)
+
+            #    if tf_pending:
+            #        refresh_cost -= 60
 
             if delta_t < refresh_cost / 10.:
                 floating_energy += refresh_cost - 10 * delta_t
