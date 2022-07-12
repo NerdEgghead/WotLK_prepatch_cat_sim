@@ -1304,12 +1304,20 @@ class Simulation():
         # First figure out how much Energy we must float in order to be able
         # to refresh our buffs/debuffs as soon as they fall off
         pending_actions = []
+        float_energy_for_rip = False
 
         if self.rip_debuff and (self.rip_end < self.fight_length - end_thresh):
             if self.berserk_expected_at(time, self.rip_end):
-                pending_actions.append((self.rip_end, 15))
+                rip_cost = 15
             else:
-                pending_actions.append((self.rip_end, 30))
+                rip_cost = 30
+
+            pending_actions.append((self.rip_end, rip_cost))
+
+            # Separate floating Energy calculation for Rip, since only Rip
+            # matters for determining Bite usage
+            if self.rip_end - time < rip_cost / 10.:
+                float_energy_for_rip = True
         if self.rake_debuff and (self.rake_end < self.fight_length - 9):
             if self.berserk_expected_at(time, self.rake_end):
                 pending_actions.append((self.rake_end, 17.5))
@@ -1354,8 +1362,11 @@ class Simulation():
         elif rip_now:
             if (energy >= self.player.rip_cost) or self.player.omen_proc:
                 return self.rip(time)
-            else:
-                time_to_next_action = (self.player.rip_cost - energy) / 10.
+            time_to_next_action = (self.player.rip_cost - energy) / 10.
+        elif bite_now and (not float_energy_for_rip):
+            if energy >= self.player.bite_cost:
+                return self.player.bite()
+            time_to_next_action = (self.player.bite_cost - energy) / 10.
         elif mangle_now:
             if (energy >= mangle_cost) or self.player.omen_proc:
                 return self.mangle(time)
@@ -1364,10 +1375,6 @@ class Simulation():
             if (energy >= self.player.rake_cost) or self.player.omen_proc:
                 return self.rake(time)
             time_to_next_action = (self.player.rake_cost - energy) / 10.
-        elif bite_now and (floating_energy == 0):
-            if energy >= self.player.bite_cost:
-                return self.player.bite()
-            time_to_next_action = (self.player.bite_cost - energy) / 10.
         else:
             if (excess_e >= self.player.shred_cost) or self.player.omen_proc:
                 return self.shred()
