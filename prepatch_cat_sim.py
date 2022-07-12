@@ -1249,7 +1249,7 @@ class Simulation():
 
         # If we previously decided to shift, then execute the shift now once
         # the input delay is over.
-        #if self.player.ready_to_shift:
+        # if self.player.ready_to_shift:
         #    self.innervate_or_shift(time)
         #    return 0.0
 
@@ -1263,6 +1263,7 @@ class Simulation():
         rip_now = (
             (cp >= rip_cp) and (not self.rip_debuff)
             and (self.fight_length - time >= end_thresh)
+            and (not self.player.omen_proc)
         )
         bite_at_end = (
             (cp >= bite_cp)
@@ -1273,7 +1274,10 @@ class Simulation():
             )
         )
 
-        mangle_now = (not rip_now) and (not self.mangle_debuff)
+        mangle_now = (
+            (not rip_now) and (not self.mangle_debuff)
+            and (not self.player.omen_proc)
+        )
         mangle_cost = self.player.mangle_cost
         bite_before_rip = (
             self.rip_debuff and self.strategy['use_bite']
@@ -1287,6 +1291,7 @@ class Simulation():
         rake_now = (
             (self.strategy['use_rake']) and (not self.rake_debuff)
             and (self.fight_length - time > 9)
+            and (not self.player.omen_proc)
         )
 
         berserk_now = (
@@ -1320,12 +1325,12 @@ class Simulation():
         pending_actions.sort()
         floating_energy = 0
         previous_time = time
-        #tf_pending = False
+        # tf_pending = False
 
         for refresh_time, refresh_cost in pending_actions:
             delta_t = refresh_time - previous_time
 
-            #if (not tf_pending):
+            # if (not tf_pending):
             #    if self.player.tf_cd > 1e-9:
             #        tf_pending = (time + self.player.tf_cd < refresh_time)
             #    elif self.player.berserk:
