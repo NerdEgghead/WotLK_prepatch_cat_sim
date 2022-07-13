@@ -185,7 +185,20 @@ buffs_1 = dbc.Col(
              },
          ],
          value=['sanc_aura', 'major_haste', 'minor_haste'], id='other_buffs'
-     )],
+     ),
+     dbc.InputGroup(
+         [
+             dbc.InputGroupAddon(
+                 'Rejuvenation / Wild Growth uptime:', addon_type='prepend'
+             ),
+             dbc.Input(
+                 value=75.0, type='number', id='hot_uptime',
+             ),
+             dbc.InputGroupAddon('%', addon_type='append')
+         ],
+         style={'width': '75%', 'marginTop': '2.5%'}
+     ),
+    ],
     width='auto', style={'marginBottom': '2.5%', 'marginLeft': '2.5%'}
 )
 
@@ -1388,6 +1401,7 @@ def plot_new_trajectory(sim, show_whites):
     Input('run_button', 'n_clicks'),
     Input('weight_button', 'n_clicks'),
     Input('graph_button', 'n_clicks'),
+    State('hot_uptime', 'value'),
     State('potion', 'value'),
     State('bonuses', 'value'),
     State('binary_talents', 'value'),
@@ -1417,12 +1431,12 @@ def plot_new_trajectory(sim, show_whites):
 def compute(
         json_file, consumables, raid_buffs, other_buffs, raven_idol,
         stat_debuffs, trinket_1, trinket_2, run_clicks, weight_clicks,
-        graph_clicks, potion, bonuses, binary_talents, feral_aggression,
-        savage_fury, naturalist, natural_shapeshifter, intensity, fight_length,
-        boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
-        use_rake, use_innervate, use_biteweave, bite_time, bear_mangle,
-        prepop_berserk, num_replicates, latency, calc_mana_weights, epic_gems,
-        show_whites
+        graph_clicks, hot_uptime, potion, bonuses, binary_talents,
+        feral_aggression, savage_fury, naturalist, natural_shapeshifter,
+        intensity, fight_length, boss_armor, boss_debuffs, cooldowns, rip_cp,
+        bite_cp, cd_delay, use_rake, use_innervate, use_biteweave, bite_time,
+        bear_mangle, prepop_berserk, num_replicates, latency,
+        calc_mana_weights, epic_gems, show_whites
 ):
     ctx = dash.callback_context
 
@@ -1620,7 +1634,7 @@ def compute(
         use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
         use_berserk='berserk' in binary_talents,
         prepop_berserk=bool(prepop_berserk), trinkets=trinket_list,
-        haste_multiplier=haste_multiplier
+        haste_multiplier=haste_multiplier, hot_uptime=hot_uptime / 100.
     )
     sim.set_active_debuffs(boss_debuffs)
     player.calc_damage_params(**sim.params)

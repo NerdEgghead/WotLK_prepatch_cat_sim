@@ -674,7 +674,7 @@ class Player():
     def execute_builder(
         self, ability_name, min_dmg, max_dmg, energy_cost, mangle_mod=False
     ):
-        """Execute a combo point builder (either Claw, Shred, or Mangle).
+        """Execute a combo point builder (either Rake, Shred, or Mangle).
 
         Arguments:
             ability_name (str): Name of the ability for use in logging.
@@ -993,7 +993,7 @@ class Simulation():
 
     def __init__(
         self, player, fight_length, latency, trinkets=[], haste_multiplier=1.0,
-        **kwargs
+        hot_uptime=0.0, **kwargs
     ):
         """Initialize simulation.
 
@@ -1009,6 +1009,9 @@ class Simulation():
                 ProcTrinket objects that will be used on cooldown.
             haste_multiplier (float): Total multiplier from external percentage
                 haste buffs such as Windfury Totem. Defaults to 1.
+            hot_uptime (float): Fractional uptime of Rejuvenation / Wild Growth
+                HoTs from a Restoration Druid. Used for simulating Revitalize
+                procs. Defaults to 0.
             kwargs (dict): Key, value pairs for all other encounter parameters,
                 including boss armor, relevant debuffs, and player stregy
                 specification. An error will be thrown if the parameter is not
@@ -1047,6 +1050,9 @@ class Simulation():
         # Set multiplicative haste buffs. The multiplier can be increased
         # during Bloodlust, etc.
         self.haste_multiplier = haste_multiplier
+
+        # Calculate time interval between Revitalize dice rolls
+        self.revitalize_frequency = 15. / (8 * max(hot_uptime, 1e-9))
 
     def set_active_debuffs(self, debuff_list):
         """Set active debuffs according to a specified list.
@@ -1339,13 +1345,15 @@ class Simulation():
             delta_t = refresh_time - previous_time
 
             # if (not tf_pending):
-            #    if self.player.tf_cd > 1e-9:
-            #        tf_pending = (time + self.player.tf_cd < refresh_time)
-            #    elif self.player.berserk:
-            #        tf_pending = (self.berserk_end < refresh_time)
+            #     if self.player.tf_cd > 1e-9:
+            #         tf_pending = (time + self.player.tf_cd < refresh_time)
+            #     elif self.player.berserk:
+            #         tf_pending = (self.berserk_end < refresh_time)
+            #     else:
+            #         tf_pending = True
 
-            #    if tf_pending:
-            #        refresh_cost -= 60
+            #     if tf_pending:
+            #         refresh_cost -= 60
 
             if delta_t < refresh_cost / 10.:
                 floating_energy += refresh_cost - 10 * delta_t
@@ -1593,6 +1601,7 @@ class Simulation():
         # Run simulation
         time = 0.0
         previous_time = 0.0
+        num_hot_ticks = 0
 
         while time <= self.fight_length:
             # Update player Mana and Energy based on elapsed simulation time
@@ -1693,6 +1702,18 @@ class Simulation():
                     self.combat_log.append(
                         self.gen_log(self.rake_end, 'Rake', 'falls off')
                     )
+
+            # Roll for Revitalize procs at the pre-calculated frequency
+            if time >= self.revitalize_frequency * (num_hot_ticks + 1):
+                num_hot_ticks += 1
+
+                if np.random.rand() < 0.15:
+                    self.player.energy = min(100, self.player.energy + 8)
+
+                    if self.log:
+                        self.combat_log.append(
+                            self.gen_log(time, 'Revitalize', 'applied')
+                        )
 
             # Activate or deactivate trinkets if appropriate
             for trinket in self.trinkets:
