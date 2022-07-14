@@ -742,8 +742,8 @@ trinket_library = {
             'hit_chance': 30./15.77/100,
         },
         'active_stats': {
-            'stat_name': 'armor_pen',
-            'stat_increment': 600,
+            'stat_name': 'armor_pen_rating',
+            'stat_increment': 85,
             'proc_name': 'Armor Penetration',
             'proc_duration': 20,
             'cooldown': 120,
@@ -850,8 +850,8 @@ trinket_library = {
         'type': 'stacking_proc',
         'passive_stats': {},
         'active_stats': {
-            'stat_name': 'armor_pen',
-            'stat_increment': 200,
+            'stat_name': 'armor_pen_rating',
+            'stat_increment': 28,
             'max_stacks': 6,
             'aura_name': 'Badge of the Swarmguard',
             'stack_name': 'Insight of the Qiraji',
@@ -927,8 +927,8 @@ trinket_library = {
             'attack_power': 84,
         },
         'active_stats': {
-            'stat_name': 'armor_pen',
-            'stat_increment': 300,
+            'stat_name': 'armor_pen_rating',
+            'stat_increment': 42,
             'proc_name': 'Forceful Strike',
             'proc_duration': 10,
             'cooldown': 0,
