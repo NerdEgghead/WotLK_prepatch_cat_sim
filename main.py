@@ -1308,11 +1308,11 @@ def calc_weights(
         ]))
 
     # Generate 70upgrades import link for raw stats
-    stat_multiplier = (1 + 0.1 * kings) * 1.03
+    stat_multiplier = (1 + 0.1 * kings) * 1.06 * 1.02
     url = ccs.gen_import_link(
         stat_weights, multiplier=stat_multiplier, epic_gems=epic_gems
     )
-    link = html.A('Seventy Upgrades Import Link', href=url, target='_blank')
+    link = html.A('Eighty Upgrades Import Link', href=url, target='_blank')
 
     # Only calculate mana stats if requested
     if calc_mana_weights:
