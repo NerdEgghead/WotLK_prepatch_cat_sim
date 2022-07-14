@@ -24,35 +24,35 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 server = app.server
 
 default_input_stats = {
-        "agility": 747,
-        "armor": 4455,
-        "armorPen": 27.92,
-        "armorPenRating": 188,
-        "attackPower": 4279,
-        "crit": 44.22,
-        "critRating": 156,
+        "agility": 778,
+        "armor": 4337,
+        "armorPen": 21.68,
+        "armorPenRating": 146,
+        "attackPower": 4266,
+        "crit": 41.46,
+        "critRating": 78,
         "critReduction": 6,
         "defense": 350,
-        "dodge": 43.09,
+        "dodge": 44.44,
         "expertise": 16,
         "expertiseRating": 27,
         "feralAttackPower": 1195,
-        "haste": 5.44,
-        "hasteRating": 66,
-        "health": 9854,
-        "hit": 8.94,
-        "hitRating": 141,
-        "intellect": 252,
+        "haste": 7.42,
+        "hasteRating": 90,
+        "health": 10334,
+        "hit": 5.14,
+        "hitRating": 81,
+        "intellect": 317,
         "mainHandSpeed": 3,
-        "mana": 5870,
+        "mana": 6845,
         "natureResist": 10,
         "parry": 5,
-        "spellCrit": 12.07,
-        "spellHaste": 5.44,
-        "spellHit": 11.18,
+        "spellCrit": 9.35,
+        "spellHaste": 7.42,
+        "spellHit": 6.42,
         "spirit": 158,
-        "stamina": 642,
-        "strength": 263
+        "stamina": 690,
+        "strength": 416
 }
 
 stat_input = dbc.Col([
@@ -119,7 +119,7 @@ stat_input = dbc.Col([
             {'label': 'Band of the Eternal Champion', 'value': 'exalted_ring'},
             {'label': 'Enchant Weapon: Mongoose', 'value': 'mongoose'},
         ],
-        value=['t6_2p', 't6_4p', 'meta', 'mongoose'],
+        value=['t4_bonus', 't6_2p', 't6_4p', 'meta', 'mongoose'],
         id='bonuses'
     ),
     ], width='auto', style={'marginBottom': '2.5%', 'marginLeft': '2.5%'})
@@ -474,7 +474,7 @@ iteration_input = dbc.Col([
         ), width='auto'),
         dbc.Col('with', width='auto', id='biteweave_text_1'),
         dbc.Col(dbc.Input(
-            type='number', value=11, id='bite_time', min=0.0, step=0.1,
+            type='number', value=10, id='bite_time', min=0.0, step=0.1,
             style={'marginTop': '-3%', 'marginBottom': '7%', 'width': '40%'},
         ), width='auto'),
         dbc.Col(
@@ -546,7 +546,7 @@ iteration_input = dbc.Col([
                 {'label': 'Blackened Naaru Sliver', 'value': 'bns'},
                 {'label': 'Darkmoon Card: Crusade', 'value': 'crusade'},
             ],
-            value='shard_of_contempt'
+            value='bns'
         )),
         dbc.Col(dbc.Select(
             id='trinket_2',
@@ -589,7 +589,7 @@ iteration_input = dbc.Col([
                 {'label': 'Blackened Naaru Sliver', 'value': 'bns'},
                 {'label': 'Darkmoon Card: Crusade', 'value': 'crusade'},
             ],
-            value='bns'
+            value='tsunami'
         )),
     ]),
     html.Div(
