@@ -257,7 +257,7 @@ encounter_details = dbc.Col(
              {'label': 'Drums of Battle', 'value': 'drums'},
              {'label': 'Dark / Demonic Rune', 'value': 'rune'},
          ],
-         value=['lust', 'drums', 'rune'], id='cooldowns',
+         value=['lust', 'drums'], id='cooldowns',
      ),
      dbc.InputGroup(
          [
@@ -349,6 +349,27 @@ iteration_input = dbc.Col([
                 {'label': '2', 'value': 2},
             ],
             value=2, id='savage_fury',
+            style={
+                'width': '20%', 'display': 'inline-block',
+                'marginBottom': '2.5%', 'marginRight': '5%'
+            }
+        )]),
+    html.Div([
+        html.Div(
+            'Protector of the Pack:',
+            style={
+                'width': '35%', 'display': 'inline-block',
+                'fontWeight': 'bold'
+            }
+        ),
+        dbc.Select(
+            options=[
+                {'label': '0', 'value': 0},
+                {'label': '1', 'value': 1},
+                {'label': '2', 'value': 2},
+                {'label': '3', 'value': 3},
+            ],
+            value=2, id='potp',
             style={
                 'width': '20%', 'display': 'inline-block',
                 'marginBottom': '2.5%', 'marginRight': '5%'
@@ -501,6 +522,10 @@ iteration_input = dbc.Col([
             'label': ' pre-pop Berserk 1 second before combat starts',
             'value': 'prepop_berserk'
         }], value=['prepop_berserk'], id='prepop_berserk'
+    ),
+    dbc.Checklist(
+        options=[{'label': ' enable bearweaving', 'value': 'bearweave'}],
+        value=['bearweave'], id='bearweave'
     ),
     html.Br(),
     html.H5('Trinkets'),
@@ -936,7 +961,8 @@ graph_section = html.Div([
             dbc.Table([
                 html.Thead(html.Tr([
                     html.Th('Time'), html.Th('Event'), html.Th('Outcome'),
-                    html.Th('Energy'), html.Th('Combo Points'), html.Th('Mana')
+                    html.Th('Energy'), html.Th('Combo Points'),
+                    html.Th('Mana'), html.Th('Rage')
                 ])),
                 html.Tbody(id='combat_log')
             ])
@@ -979,6 +1005,7 @@ def process_trinkets(
                     player, 'crit_chance',
                     getattr(player, 'crit_chance') + increment / 40. / 100.
                 )
+                player.agility += increment
             if stat == 'attack_power':
                 increment *= ap_mod
             if stat == 'haste_rating':
@@ -1001,9 +1028,12 @@ def process_trinkets(
         if active_stats['stat_name'] == 'attack_power':
             active_stats['stat_increment'] *= ap_mod
         if active_stats['stat_name'] == 'Agility':
-            active_stats['stat_name'] = ['attack_power', 'crit_chance']
+            active_stats['stat_name'] = [
+                'agility', 'attack_power', 'crit_chance'
+            ]
             agi_increment = active_stats['stat_increment']
             active_stats['stat_increment'] = np.array([
+                stat_mod * agi_increment,
                 stat_mod * agi_increment * ap_mod,
                 stat_mod * agi_increment/40./100.
             ])
@@ -1059,12 +1089,12 @@ def process_trinkets(
 
 
 def create_player(
-        buffed_attack_power, buffed_hit, buffed_crit, buffed_weapon_damage,
-        haste_rating, expertise_rating, armor_pen_rating, buffed_mana_pool,
-        buffed_int, buffed_spirit, buffed_mp5, weapon_speed, unleashed_rage,
-        kings, raven_idol, other_buffs, stat_debuffs, cooldowns, bonuses,
-        binary_talents, naturalist, feral_aggression, savage_fury,
-        natural_shapeshifter, intensity, potion
+        buffed_agility, buffed_attack_power, buffed_hit, buffed_crit,
+        buffed_weapon_damage, haste_rating, expertise_rating, armor_pen_rating,
+        buffed_mana_pool, buffed_int, buffed_spirit, buffed_mp5, weapon_speed,
+        unleashed_rage, kings, raven_idol, other_buffs, stat_debuffs,
+        cooldowns, bonuses, binary_talents, naturalist, feral_aggression,
+        savage_fury, potp, natural_shapeshifter, intensity, potion
 ):
     """Takes in raid buffed player stats from Eighty Upgrades, modifies them
     based on boss debuffs and miscellaneous buffs not captured by Eighty
@@ -1101,14 +1131,15 @@ def create_player(
 
     # Create and return a corresponding Player object
     player = ccs.Player(
-        attack_power=buffed_attack_power, hit_chance=encounter_hit / 100,
+        attack_power=buffed_attack_power, ap_mod=ap_mod,
+        agility=buffed_agility, hit_chance=encounter_hit / 100,
         expertise_rating=expertise_rating, crit_chance=encounter_crit / 100,
         swing_timer=buffed_swing_timer, mana=buffed_mana_pool,
         intellect=buffed_int, spirit=buffed_spirit, mp5=encounter_mp5,
         omen='omen' in binary_talents,
         primal_gore='primal_gore' in binary_talents,
         feral_aggression=int(feral_aggression), savage_fury=int(savage_fury),
-        natural_shapeshifter=int(natural_shapeshifter),
+        potp=int(potp), natural_shapeshifter=int(natural_shapeshifter),
         intensity=int(intensity), weapon_speed=weapon_speed,
         bonus_damage=encounter_weapon_damage, multiplier=damage_multiplier,
         jow='jow' in stat_debuffs, armor_pen_rating=armor_pen_rating,
@@ -1407,6 +1438,7 @@ def plot_new_trajectory(sim, show_whites):
     State('binary_talents', 'value'),
     State('feral_aggression', 'value'),
     State('savage_fury', 'value'),
+    State('potp', 'value'),
     State('naturalist', 'value'),
     State('natural_shapeshifter', 'value'),
     State('intensity', 'value'),
@@ -1423,6 +1455,7 @@ def plot_new_trajectory(sim, show_whites):
     State('bite_time', 'value'),
     State('bear_mangle', 'value'),
     State('prepop_berserk', 'value'),
+    State('bearweave', 'value'),
     State('num_replicates', 'value'),
     State('latency', 'value'),
     State('calc_mana_weights', 'checked'),
@@ -1432,10 +1465,10 @@ def compute(
         json_file, consumables, raid_buffs, other_buffs, raven_idol,
         stat_debuffs, trinket_1, trinket_2, run_clicks, weight_clicks,
         graph_clicks, hot_uptime, potion, bonuses, binary_talents,
-        feral_aggression, savage_fury, naturalist, natural_shapeshifter,
+        feral_aggression, savage_fury, potp, naturalist, natural_shapeshifter,
         intensity, fight_length, boss_armor, boss_debuffs, cooldowns, rip_cp,
         bite_cp, cd_delay, use_rake, use_innervate, use_biteweave, bite_time,
-        bear_mangle, prepop_berserk, num_replicates, latency,
+        bear_mangle, prepop_berserk, bearweave, num_replicates, latency,
         calc_mana_weights, epic_gems, show_whites
 ):
     ctx = dash.callback_context
@@ -1539,15 +1572,16 @@ def compute(
 
     # Create Player object based on raid buffed stat inputs and talents
     player, ap_mod, stat_mod, haste_multiplier = create_player(
-        input_stats['attackPower'], input_stats['hit'], input_stats['crit'],
-        input_stats.get('weaponDamage', 0), input_stats.get('hasteRating', 0),
+        input_stats['agility'], input_stats['attackPower'], input_stats['hit'],
+        input_stats['crit'], input_stats.get('weaponDamage', 0),
+        input_stats.get('hasteRating', 0),
         input_stats.get('expertiseRating', 0),
         input_stats.get('armorPenRating', 0),input_stats['mana'],
         input_stats['intellect'], input_stats['spirit'],
         input_stats.get('mp5', 0), float(input_stats['mainHandSpeed']),
         unleashed_rage, kings, raven_idol, other_buffs, stat_debuffs,
         cooldowns, bonuses, binary_talents, naturalist, feral_aggression,
-        savage_fury, natural_shapeshifter, intensity, potion
+        savage_fury, potp, natural_shapeshifter, intensity, potion
     )
 
     # Process trinkets
@@ -1590,8 +1624,10 @@ def compute(
         player.proc_trinkets.append(ring)
     if 'idol_of_terror' in bonuses:
         idol = trinkets.ProcTrinket(
-            chance_on_hit=0.85, stat_name=['attack_power', 'crit_chance'],
+            chance_on_hit=0.85,
+            stat_name=['agility', 'attack_power', 'crit_chance'],
             stat_increment=np.array([
+                65. * stat_mod,
                 65. * stat_mod * ap_mod,
                 65. * stat_mod / 40. / 100.,
             ]),
@@ -1611,8 +1647,11 @@ def compute(
     if 'mongoose' in bonuses:
         mongoose_ppm = 0.73
         mongoose_enchant = trinkets.RefreshingProcTrinket(
-            stat_name=['attack_power', 'crit_chance', 'haste_rating'],
+            stat_name=[
+                'agility', 'attack_power', 'crit_chance', 'haste_rating'
+            ],
             stat_increment=np.array([
+                120. * stat_mod,
                 120. * stat_mod * ap_mod,
                 120. * stat_mod / 40. / 100.,
                 30
@@ -1633,8 +1672,9 @@ def compute(
         use_innervate=bool(use_innervate), use_rake=bool(use_rake),
         use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
         use_berserk='berserk' in binary_talents,
-        prepop_berserk=bool(prepop_berserk), trinkets=trinket_list,
-        haste_multiplier=haste_multiplier, hot_uptime=hot_uptime / 100.
+        prepop_berserk=bool(prepop_berserk), bearweave=bool(bearweave),
+        trinkets=trinket_list, haste_multiplier=haste_multiplier,
+        hot_uptime=hot_uptime / 100.
     )
     sim.set_active_debuffs(boss_debuffs)
     player.calc_damage_params(**sim.params)

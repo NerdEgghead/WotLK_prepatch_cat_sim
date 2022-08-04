@@ -8,7 +8,10 @@ import multiprocessing
 import psutil
 
 
-def calc_white_damage(low_end, high_end, miss_chance, crit_chance, meta=False):
+def calc_white_damage(
+    low_end, high_end, miss_chance, crit_chance, meta=False,
+    predatory_instincts=True
+):
     """Execute single roll table for a melee white attack.
 
     Arguments:
@@ -18,6 +21,8 @@ def calc_white_damage(low_end, high_end, miss_chance, crit_chance, meta=False):
         crit_chance (float): Probability of a critical strike.
         meta (bool): Whether the Relentless Earthstorm Diamond meta-gem is
             used. Defaults False.
+        predatory_instincts (bool): Whether to apply the critical damage
+            modifier from the Predatory Instincts talent. Defaults True.
 
     Returns:
         damage_done (float): Damage done by the swing.
@@ -35,12 +40,14 @@ def calc_white_damage(low_end, high_end, miss_chance, crit_chance, meta=False):
         glance_reduction = 0.15 + np.random.rand() * 0.2
         return (1.0 - glance_reduction) * base_dmg, False, False
     if outcome_roll < miss_chance + 0.24 + crit_chance:
-        return 2.2 * (1 + meta * 0.03) * base_dmg, False, True
+        crit_multi = 2.2 if predatory_instincts else 2.0
+        return crit_multi * (1 + meta * 0.03) * base_dmg, False, True
     return base_dmg, False, False
 
 
 def calc_yellow_damage(
-    low_end, high_end, miss_chance, crit_chance, meta=False
+    low_end, high_end, miss_chance, crit_chance, meta=False,
+    predatory_instincts=True
 ):
     """Execute 2-roll table for a melee spell.
 
@@ -51,6 +58,8 @@ def calc_yellow_damage(
         crit_chance (float): Probability of a critical strike.
         meta (bool): Whether the Relentless Earthstorm Diamond meta-gem is
             used. Defaults False.
+        predatory_instincts (bool): Whether to apply the critical damage
+            modifier from the Predatory Instincts talent. Defaults True.
 
     Returns:
         damage_done (float): Damage done by the ability.
@@ -66,7 +75,8 @@ def calc_yellow_damage(
     crit_roll = np.random.rand()
 
     if crit_roll < crit_chance:
-        return 2.2 * (1 + meta * 0.03) * base_dmg, False, True
+        crit_multi = 2.2 if predatory_instincts else 2.0
+        return crit_multi * (1 + meta * 0.03) * base_dmg, False, True
     return base_dmg, False, False
 
 
@@ -91,32 +101,38 @@ def piecewise_eval(t_fine, times, values):
     return result
 
 
-def calc_swing_timer(haste_rating, multiplier=1.0):
-    """Calculate cat swing timer given a total haste rating stat.
+def calc_swing_timer(haste_rating, multiplier=1.0, cat_form=True):
+    """Calculate swing timer given a total haste rating stat.
 
     Arguments:
         haste_rating (int): Player haste rating stat.
         multiplier (float): Overall haste multiplier from multiplicative haste
             buffs such as Bloodlust. Defaults to 1.
+        cat_form (bool): If True, calculate Cat Form swing timer. If False,
+            calculate Dire Bear Form swing timer. Defaults True.
 
     Returns:
         swing_timer (float): Hasted swing timer in seconds.
     """
-    return 1.0 / (multiplier * (1 + haste_rating / 1577))
+    base_timer = 1.0 if cat_form else 2.5
+    return base_timer / (multiplier * (1 + haste_rating / 1577))
 
 
-def calc_haste_rating(swing_timer, multiplier=1.0):
+def calc_haste_rating(swing_timer, multiplier=1.0, cat_form=True):
     """Calculate the haste rating that is consistent with a given swing timer.
 
     Arguments:
         swing_timer (float): Hasted swing timer in seconds.
         multiplier (float): Overall haste multiplier from multiplicative haste
             buffs such as Bloodlust. Defaults to 1.
+        cat_form (bool): If True, assume swing timer is for Cat Form. If False,
+            assume swing timer is for Dire Bear Form. Defaults True.
 
     Returns:
         haste_rating (float): Unrounded haste rating.
     """
-    return 1577 * (1 / (swing_timer * multiplier) - 1)
+    base_timer = 1.0 if cat_form else 2.5
+    return 1577 * (base_timer / (swing_timer * multiplier) - 1)
 
 
 def gen_import_link(
@@ -202,19 +218,21 @@ class Player():
     # Implement all ability costs as read-only properties here.
 
     def __init__(
-            self, attack_power, hit_chance, expertise_rating, crit_chance,
-            armor_pen_rating, swing_timer, mana, intellect, spirit, mp5,
-            jow=False, pot=True, cheap_pot=False, rune=True, t4_bonus=False,
-            t6_2p=False, t6_4p=False, wolfshead=True, meta=False,
-            bonus_damage=0, shred_bonus=0, debuff_ap=0, multiplier=1.1,
-            omen=True, primal_gore=True, feral_aggression=0, savage_fury=2,
-            natural_shapeshifter=3, intensity=3, weapon_speed=3.0,
-            proc_trinkets=[], log=False
+            self, attack_power, ap_mod, agility, hit_chance, expertise_rating,
+            crit_chance, armor_pen_rating, swing_timer, mana, intellect,
+            spirit, mp5, jow=False, pot=True, cheap_pot=False, rune=True,
+            t4_bonus=False, t6_2p=False, t6_4p=False, wolfshead=True,
+            meta=False, bonus_damage=0, shred_bonus=0, debuff_ap=0,
+            multiplier=1.1, omen=True, primal_gore=True, feral_aggression=0,
+            savage_fury=2, natural_shapeshifter=3, intensity=3, potp=2,
+            weapon_speed=3.0, proc_trinkets=[], log=False
     ):
         """Initialize player with key damage parameters.
 
         Arguments:
-            attack_power (int): Fully raid buffed attack power.
+            attack_power (int): Fully raid buffed attack power in Cat Form.
+            ap_mod (float): Total multiplier for Attack Power in Cat Form.
+            agility (int): Fully raid buffed Agility attribute.
             hit_chance (float): Chance to hit as a fraction.
             expertise_rating (int): Player's Expertise Rating stat.
             crit_chance (float): Fully raid buffed crit chance as a fraction.
@@ -260,7 +278,9 @@ class Player():
                 to 0.
             natural_shapeshifter (int): Points taken in Natural Shapeshifter
                 talent. Defaults to 3.
-            intensity (int): Points taken in Intensity talen. Defaults to 3.
+            intensity (int): Points taken in Intensity talent. Defaults to 3.
+            potp (int): Points taken in Protector of the Pack talent. Defaults
+                to 2.
             weapon_speed (float): Equipped weapon speed, used for calculating
                 Omen of Clarity proc rate. Defaults to 3.0.
             proc_trinkets (list of trinkets.ProcTrinket): If applicable, a list
@@ -272,6 +292,9 @@ class Player():
         """
         self.attack_power = attack_power
         self.debuff_ap = debuff_ap
+        self.agility = agility
+        self.ap_mod = ap_mod
+        self.bear_ap_mod = ap_mod / 1.1 * (1 + 0.02 * potp)
 
         # Set internal hit and expertise values, and derive total miss chance.
         self._hit_chance = hit_chance
@@ -306,7 +329,8 @@ class Player():
         self.weapon_speed = weapon_speed
         self.omen_rates = {
             'white': 3.5/60,
-            'yellow': 0.0
+            'yellow': 0.0,
+            'bear': 3.5/60*2.5,
         }
         self.proc_trinkets = proc_trinkets
         self.set_mana_regen()
@@ -393,8 +417,8 @@ class Player():
         )
         damage_multiplier = self.damage_multiplier * (1 + 0.04 * blood_frenzy)
         self.multiplier = armor_multiplier * damage_multiplier
-        self.white_low = (43.5 + bonus_damage) * self.multiplier
-        self.white_high = (66.5 + bonus_damage) * self.multiplier
+        self.white_low = (43.0 + bonus_damage) * self.multiplier
+        self.white_high = (66.0 + bonus_damage) * self.multiplier
         self.shred_low = 1.2 * (
             self.white_low * 2.25 + (405 + self.shred_bonus) * self.multiplier
         )
@@ -430,12 +454,32 @@ class Player():
             i: (24 + 47*i + 0.01*i*ap) * rip_multiplier for i in range(1,6)
         }
 
+        # Bearweave damage calculations
+        bear_ap = self.bear_ap_mod * (
+            self.attack_power / self.ap_mod - self.agility + 70
+        )
+        bear_bonus_damage = (
+            (bear_ap + self.debuff_ap) / 14 * 2.5 + self.bonus_damage
+        )
+        self.white_bear_low = (109.0 + bear_bonus_damage) * self.multiplier
+        self.white_bear_high = (165.0 + bear_bonus_damage) * self.multiplier
+        self.maul_low = (self.white_bear_low + 290 * self.multiplier) * 1.872
+        self.maul_high = (self.white_bear_high + 290 * self.multiplier) * 1.872
+        self.mangle_bear_low = 1.2 * (
+            self.white_bear_low * 1.15 + 115 * self.multiplier
+        )
+        self.mangle_bear_high = 1.2 * (
+            self.white_bear_high * 1.15 + 115 * self.multiplier
+        )
+
         # Adjust damage values for Gift of Arthas
         if not gift_of_arthas:
             return
 
         for bound in ['low', 'high']:
-            for ability in ['white', 'shred', 'mangle']:
+            for ability in [
+                'white', 'shred', 'mangle', 'white_bear', 'maul', 'mangle_bear'
+            ]:
                 attr = '%s_%s' % (ability, bound)
                 setattr(self, attr, getattr(self, attr) + 8 * armor_multiplier)
 
@@ -454,6 +498,7 @@ class Player():
         self.energy = 100
         self.combo_points = 0
         self.mana = self.mana_pool
+        self.rage = 0
         self.rune_cd = 0.0
         self.pot_cd = 0.0
         self.pot_active = False
@@ -462,8 +507,11 @@ class Player():
         self.five_second_rule = False
         self.cat_form = True
         self.t4_proc = False
+        self.ready_to_shift = False
         self.berserk = False
         self.berserk_cd = 0.0
+        self.enrage = False
+        self.enrage_cd = 0.0
         self.set_ability_costs()
 
         # Create dictionary to hold breakdown of total casts and damage
@@ -471,7 +519,7 @@ class Player():
 
         for cast_type in [
             'Melee', 'Mangle', 'Shred', 'Rip', 'Rake', 'Ferocious Bite',
-            'Shift'
+            'Shift', 'Maul'
         ]:
             self.dmg_breakdown[cast_type] = {'casts': 0, 'damage': 0.0}
 
@@ -500,8 +548,10 @@ class Player():
 
         if spell:
             proc_rate = self.omen_rates['spell']
-        else:
+        elif self.cat_form:
             proc_rate = self.omen_rates['white']
+        else:
+            proc_rate = self.omen_rates['bear']
 
         proc_roll = np.random.rand()
 
@@ -531,7 +581,11 @@ class Player():
         proc_roll = np.random.rand()
 
         if proc_roll < 0.04:
-            self.energy = min(self.energy + 20, 100)
+            if self.cat_form:
+                self.energy = min(self.energy + 20, 100)
+            else:
+                self.rage = min(self.rage + 10, 100)
+
             self.t4_proc = True
 
     def check_procs(self, yellow=False, crit=False):
@@ -570,6 +624,9 @@ class Player():
             mana_regen = self.regen_rates['base']
 
         self.mana = min(self.mana + mana_regen * delta_t, self.mana_pool)
+
+        if self.enrage:
+            self.rage = min(100, self.rage + delta_t)
 
     def use_rune(self):
         """Pop a Dark/Demonic Rune to restore mana when appropriate.
@@ -617,14 +674,28 @@ class Player():
         Returns:
             damage_done (float): Damage done by the swing.
         """
+        low = self.white_low if self.cat_form else self.white_bear_low
+        high = self.white_high if self.cat_form else self.white_bear_high
         damage_done, miss, crit = calc_white_damage(
-            self.white_low, self.white_high, self.miss_chance,
-            self.crit_chance, self.meta
+            low, high, self.miss_chance, self.crit_chance, meta=self.meta,
+            predatory_instincts=self.cat_form
         )
 
-        # Check for Omen and JoW procs
+        # Apply King of the Jungle for bear form swings
+        if self.enrage:
+            damage_done *= 1.15
+
         if not miss:
+            # Check for Omen and JoW procs
             self.check_procs(crit=crit)
+
+            # If in Dire Bear Form, generate Rage from the swing
+            if not self.cat_form:
+                rage_gen = (
+                    15./4./274.7 * damage_done + 2.5/2*3.5 * (1 + crit)
+                    + 5 * crit
+                )
+                self.rage = min(self.rage + rage_gen, 100)
 
         # Log the swing
         self.dmg_breakdown['Melee']['casts'] += 1
@@ -633,6 +704,71 @@ class Player():
         if self.log:
             self.gen_log('melee', damage_done, miss, crit, False)
 
+        return damage_done
+
+    def execute_bear_special(
+        self, ability_name, min_dmg, max_dmg, rage_cost, yellow=True
+    ):
+        """Execute a special ability cast in Dire Bear form.
+
+        Arguments:
+            ability_name (str): Name of the ability for use in logging.
+            min_dmg (float): Low end damage of the ability.
+            max_dmg (float): High end damage of the ability.
+            rage_cost (int): Rage cost of the ability.
+            yellow (bool): Whether the ability should be treated as "yellow
+                damage" for the purposes of proc calculations. Defaults True.
+
+        Returns:
+            damage_done (float): Damage done by the ability.
+            success (bool): Whether the ability successfully landed.
+        """
+        # Perform Monte Carlo
+        damage_done, miss, crit = calc_yellow_damage(
+            min_dmg, max_dmg, self.miss_chance, self.crit_chance,
+            meta=self.meta, predatory_instincts=False
+        )
+
+        # Apply King of the Jungle
+        if self.enrage:
+            damage_done *= 1.15
+
+        # Set GCD
+        if yellow:
+            self.gcd = 1.5
+
+        # Update Rage
+        clearcast = self.omen_proc
+
+        if clearcast:
+            self.omen_proc = False
+        else:
+            self.rage -= rage_cost * (1 - 0.8 * miss)
+
+        self.rage += 5 * crit
+
+        # Check for procs
+        if not miss:
+            self.check_procs(crit=crit, yellow=yellow)
+
+        # Log the cast
+        self.dmg_breakdown[ability_name]['casts'] += 1
+        self.dmg_breakdown[ability_name]['damage'] += damage_done
+
+        if self.log:
+            self.gen_log(ability_name, damage_done, miss, crit, clearcast)
+
+        return damage_done, not miss
+
+    def maul(self):
+        """Execute a Maul when in Dire Bear Form.
+
+        Returns:
+            damage_done (float): Damage done by the Maul cast.
+        """
+        damage_done, success = self.execute_bear_special(
+            'Maul', self.maul_low, self.maul_high, 10, yellow=False
+        )
         return damage_done
 
     def gen_log(self, ability_name, dmg_done, miss, crit, clearcast):
@@ -668,7 +804,7 @@ class Player():
 
         self.combat_log = [
             ability_name, damage_str, '%.1f' % self.energy,
-            '%d' % self.combo_points, '%d' % self.mana
+            '%d' % self.combo_points, '%d' % self.mana, '%d' % self.rage
         ]
 
     def execute_builder(
@@ -686,7 +822,7 @@ class Player():
 
         Returns:
             damage_done (float): Damage done by the ability.
-            success (float): Whether the ability successfully landed.
+            success (bool): Whether the ability successfully landed.
         """
         # Perform Monte Carlo
         damage_done, miss, crit = calc_yellow_damage(
@@ -755,9 +891,14 @@ class Player():
             damage_done (float): Damage done by the Mangle cast.
             success (bool): Whether the Mangle debuff was successfully applied.
         """
-        dmg, success = self.execute_builder(
-            'Mangle', self.mangle_low, self.mangle_high, self.mangle_cost
-        )
+        if self.cat_form:
+            dmg, success = self.execute_builder(
+                'Mangle', self.mangle_low, self.mangle_high, self.mangle_cost
+            )
+        else:
+            dmg, success = self.execute_bear_special(
+                'Mangle', self.mangle_bear_low, self.mangle_bear_high, 15
+            )
 
         # Since a handful of proc effects trigger only on Mangle, we separately
         # check for those procs here if the Mangle landed successfully.
@@ -863,27 +1004,42 @@ class Player():
             time (float): Time at which the shift is executed, in seconds. Used
                 for determining the five second rule.
         """
-        self.energy = max(self.energy, 60) + 20 * self.wolfshead
+        log_str = ''
+
+        if self.cat_form:
+            self.cat_form = False
+            self.rage = 10 * (np.random.rand() < 0.6)
+
+            # Bundle Enrage with the bear shift if available
+            if self.enrage_cd < 1e-9:
+                self.rage += 20
+                self.enrage = True
+                self.enrage_cd = 60.
+                log_str = 'use Enrage'
+        else:
+            self.cat_form = True
+            self.energy = min(self.energy, 60) + 20 * self.wolfshead
+            self.enrage = False
+
         self.gcd = 1.5
         self.dmg_breakdown['Shift']['casts'] += 1
         self.mana -= self.shift_cost
         self.five_second_rule = True
-        self.last_cast_time = time
-        self.cat_form = True
-        mana_str = ''
+        self.last_shift = time
+        self.ready_to_shift = False
 
         # Pop a Dark Rune if we can get full value from it
         if self.use_rune():
-            mana_str = 'use Dark Rune'
+            log_str = 'use Dark Rune'
 
         # Pop a Mana Potion if we can get full value from it
         if self.use_pot(time):
-            mana_str = 'use Mana Potion'
+            log_str = 'use Mana Potion'
 
         if self.log:
             self.combat_log = [
-                'shift', mana_str, '%d' % self.energy,
-                '%d' % self.combo_points, '%d' % self.mana
+                'shift', log_str, '%.1f' % self.energy,
+                '%d' % self.combo_points, '%d' % self.mana, '%d' % self.rage
             ]
 
     def innervate(self, time):
@@ -904,7 +1060,7 @@ class Player():
         if self.log:
             self.combat_log = [
                 'Innervate', '', '%d' % self.energy,
-                '%d' % self.combo_points, '%d' % self.mana
+                '%d' % self.combo_points, '%d' % self.mana, '%d' % self.rage
             ]
 
 
@@ -989,6 +1145,7 @@ class Simulation():
         'bear_mangle': False,
         'use_berserk': False,
         'prepop_berserk': False,
+        'bearweave': False,
     }
 
     def __init__(
@@ -1090,7 +1247,8 @@ class Simulation():
         """
         return [
             '%.3f' % time, event, outcome, '%.1f' % self.player.energy,
-            '%d' % self.player.combo_points, '%d' % self.player.mana
+            '%d' % self.player.combo_points, '%d' % self.player.mana,
+            '%d' % self.player.rage
         ]
 
     def innervate_or_shift(self, time):
@@ -1255,7 +1413,7 @@ class Simulation():
             return (current_time + self.player.tf_cd < future_time)
         if self.player.berserk:
             return (self.berserk_end < future_time)
-        return False
+        return True
 
     def execute_rotation(self, time):
         """Execute the next player action in the DPS rotation according to the
@@ -1268,15 +1426,22 @@ class Simulation():
             damage_done (float): Damage done by the player action.
         """
         # If we're out of form because we just cast GotW/etc., always shift
-        if not self.player.cat_form:
-            self.player.shift(time)
-            return 0.0
+        #if not self.player.cat_form:
+        #    self.player.shift(time)
+        #    return 0.0
 
         # If we previously decided to shift, then execute the shift now once
         # the input delay is over.
-        # if self.player.ready_to_shift:
-        #    self.innervate_or_shift(time)
-        #    return 0.0
+        if self.player.ready_to_shift:
+            self.player.shift(time)
+
+            # Swing timer only updates on the next swing after we shift
+            swing_fac = 1/2.5 if self.player.cat_form else 2.5
+            self.update_swing_times(
+                self.swing_times[0], self.swing_timer * swing_fac,
+                first_swing=True
+            )
+            return 0.0
 
         energy, cp = self.player.energy, self.player.combo_points
         rip_cp = self.strategy['min_combos_for_rip']
@@ -1358,6 +1523,17 @@ class Simulation():
                 pending_actions.append((self.mangle_end, base_cost))
 
         pending_actions.sort()
+
+        # Allow for bearweaving if the next pending action is >= 4.5s away
+        weave_energy = 30 - 20 * self.latency
+        weave_end = time + 4.5 + 2 * self.latency
+        bearweave_now = (
+            self.strategy['bearweave'] and (energy <= weave_energy)
+            and (not self.player.omen_proc) and
+            ((not pending_actions) or (pending_actions[0][0] >= weave_end))
+            and (not self.tf_expected_before(time, weave_end))
+        )
+
         floating_energy = 0
         previous_time = time
         #tf_pending = False
@@ -1380,7 +1556,19 @@ class Simulation():
         excess_e = energy - floating_energy
         time_to_next_action = 0.0
 
-        if berserk_now:
+        if not self.player.cat_form:
+            # Shift back into Cat Form if (a) our first bear auto procced
+            # Clearcasting, or (b) our first bear auto didn't generate enough
+            # Rage to Mangle, or (c) we just cast Mangle.
+            shift_now = (
+                self.player.omen_proc or (self.player.rage < 15)
+                or (time - self.player.last_shift > 3 - 1e-9)
+            )
+            if shift_now:
+                self.player.ready_to_shift = True
+            else:
+                return self.mangle(time)
+        elif berserk_now:
             self.apply_berserk(time)
             return 0.0
         elif rip_now:
@@ -1399,6 +1587,8 @@ class Simulation():
             if (energy >= self.player.rake_cost) or self.player.omen_proc:
                 return self.rake(time)
             time_to_next_action = (self.player.rake_cost - energy) / 10.
+        elif bearweave_now:
+            self.player.ready_to_shift = True
         else:
             if (excess_e >= self.player.shred_cost) or self.player.omen_proc:
                 return self.shred()
@@ -1456,9 +1646,10 @@ class Simulation():
         """
         new_swing_timer = calc_swing_timer(
             calc_haste_rating(
-                self.swing_timer, multiplier=self.haste_multiplier
+                self.swing_timer, multiplier=self.haste_multiplier,
+                cat_form=self.player.cat_form
             ) + haste_rating_increment,
-            multiplier=self.haste_multiplier
+            multiplier=self.haste_multiplier, cat_form=self.player.cat_form
         )
         self.update_swing_times(time, new_swing_timer)
 
@@ -1637,9 +1828,10 @@ class Simulation():
             )
             self.player.tf_cd = max(0.0, self.player.tf_cd - delta_t)
             self.player.berserk_cd = max(0.0, self.player.berserk_cd - delta_t)
+            self.player.enrage_cd = max(0.0, self.player.enrage_cd - delta_t)
 
             if (self.player.five_second_rule
-                    and (time - self.player.last_cast_time >= 5)):
+                    and (time - self.player.last_shift >= 5)):
                 self.player.five_second_rule = False
 
             # Check if Innervate fell off
@@ -1677,7 +1869,8 @@ class Simulation():
                 if self.player.primal_gore:
                     tick_damage, _, _ = calc_yellow_damage(
                         tick_damage, tick_damage, 0.0, self.player.crit_chance,
-                        self.player.meta
+                        meta=self.player.meta,
+                        predatory_instincts=self.player.cat_form
                     )
 
                 dmg_done += tick_damage
@@ -1724,7 +1917,10 @@ class Simulation():
                 num_hot_ticks += 1
 
                 if np.random.rand() < 0.15:
-                    self.player.energy = min(100, self.player.energy + 8)
+                    if self.player.cat_form:
+                        self.player.energy = min(100, self.player.energy + 8)
+                    else:
+                        self.player.rage = min(100, self.player.rage + 4)
 
                     if self.log:
                         self.combat_log.append(
@@ -1737,7 +1933,19 @@ class Simulation():
 
             # Check if a melee swing happens at this time
             if time == self.swing_times[0]:
-                dmg_done += self.player.swing()
+                if self.player.cat_form:
+                    dmg_done += self.player.swing()
+                else:
+                    if time - self.player.last_shift > 1.5:
+                        maul_rage_thresh = 10
+                    else:
+                        maul_rage_thresh = 25
+
+                    if self.player.rage >= maul_rage_thresh:
+                        dmg_done += self.player.maul()
+                    else:
+                        dmg_done += self.player.swing()
+
                 self.swing_times.pop(0)
 
                 if self.log:
@@ -1799,6 +2007,7 @@ class Simulation():
             tf_now = (
                 (self.player.energy < tf_energy_thresh)
                 and (self.player.tf_cd < 1e-9) and (not self.player.berserk)
+                and self.player.cat_form
             )
 
             if tf_now:

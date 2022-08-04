@@ -325,11 +325,11 @@ class Bloodlust(ActivatedTrinket):
         """
         old_multi = sim.haste_multiplier
         haste_rating = ccs.calc_haste_rating(
-            sim.swing_timer, multiplier=old_multi
+            sim.swing_timer, multiplier=old_multi, cat_form=player.cat_form
         )
         new_multi = old_multi/1.3 if self.active else old_multi*1.3
         new_swing_timer = ccs.calc_swing_timer(
-            haste_rating, multiplier=new_multi
+            haste_rating, multiplier=new_multi, cat_form=player.cat_form
         )
         sim.update_swing_times(time, new_swing_timer)
         sim.haste_multiplier = new_multi
