@@ -1494,6 +1494,7 @@ class Simulation():
         # First figure out how much Energy we must float in order to be able
         # to refresh our buffs/debuffs as soon as they fall off
         pending_actions = []
+        rip_refresh_pending = False
         float_energy_for_rip = False
 
         if self.rip_debuff and (self.rip_end < self.fight_length - end_thresh):
@@ -1503,6 +1504,7 @@ class Simulation():
                 rip_cost = 30
 
             pending_actions.append((self.rip_end, rip_cost))
+            rip_refresh_pending = True
 
             # Separate floating Energy calculation for Rip, since only Rip
             # matters for determining Bite usage
@@ -1530,7 +1532,8 @@ class Simulation():
         bearweave_now = (
             self.strategy['bearweave'] and (energy <= weave_energy)
             and (not self.player.omen_proc) and
-            ((not pending_actions) or (pending_actions[0][0] >= weave_end))
+            # ((not pending_actions) or (pending_actions[0][0] >= weave_end))
+            ((not rip_refresh_pending) or (self.rip_end >= weave_end))
             and (not self.tf_expected_before(time, weave_end))
         )
 
