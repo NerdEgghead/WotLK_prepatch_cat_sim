@@ -1162,6 +1162,7 @@ class Simulation():
         'use_berserk': False,
         'prepop_berserk': False,
         'bearweave': False,
+        'maul_rage_thresh': 25,
     }
 
     def __init__(
@@ -1971,7 +1972,7 @@ class Simulation():
                     if time - self.player.last_shift > 1.5:
                         maul_rage_thresh = 10
                     else:
-                        maul_rage_thresh = 25
+                        maul_rage_thresh = self.strategy['maul_rage_thresh']
 
                     if self.player.rage >= maul_rage_thresh:
                         dmg_done += self.player.maul()

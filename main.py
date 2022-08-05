@@ -527,6 +527,23 @@ iteration_input = dbc.Col([
         options=[{'label': ' enable bearweaving', 'value': 'bearweave'}],
         value=['bearweave'], id='bearweave'
     ),
+    dbc.Collapse(
+        [
+            dbc.InputGroup(
+                [
+                    dbc.InputGroupAddon(
+                        'Minimum Rage for initial Maul:', addon_type='prepend'
+                    ),
+                    dbc.Input(
+                        value=25, min=10, step=1, type='number',
+                        id='maul_rage_thresh'
+                    )
+                ],
+                style={'width': '50%', 'marginTop': '1%', 'marginLeft': '5%'}
+            )
+        ],
+        id='bearweave_options', is_open=True
+    ),
     html.Br(),
     html.H5('Trinkets'),
     dbc.Row([
@@ -1456,6 +1473,7 @@ def plot_new_trajectory(sim, show_whites):
     State('bear_mangle', 'value'),
     State('prepop_berserk', 'value'),
     State('bearweave', 'value'),
+    State('maul_rage_thresh', 'value'),
     State('num_replicates', 'value'),
     State('latency', 'value'),
     State('calc_mana_weights', 'checked'),
@@ -1468,8 +1486,8 @@ def compute(
         feral_aggression, savage_fury, potp, naturalist, natural_shapeshifter,
         intensity, fight_length, boss_armor, boss_debuffs, cooldowns, rip_cp,
         bite_cp, cd_delay, use_rake, use_innervate, use_biteweave, bite_time,
-        bear_mangle, prepop_berserk, bearweave, num_replicates, latency,
-        calc_mana_weights, epic_gems, show_whites
+        bear_mangle, prepop_berserk, bearweave, maul_rage_thresh,
+        num_replicates, latency, calc_mana_weights, epic_gems, show_whites
 ):
     ctx = dash.callback_context
 
@@ -1673,8 +1691,8 @@ def compute(
         use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
         use_berserk='berserk' in binary_talents,
         prepop_berserk=bool(prepop_berserk), bearweave=bool(bearweave),
-        trinkets=trinket_list, haste_multiplier=haste_multiplier,
-        hot_uptime=hot_uptime / 100.
+        maul_rage_thresh=maul_rage_thresh, trinkets=trinket_list,
+        haste_multiplier=haste_multiplier, hot_uptime=hot_uptime / 100.
     )
     sim.set_active_debuffs(boss_debuffs)
     player.calc_damage_params(**sim.params)
@@ -1709,6 +1727,16 @@ def compute(
         upload_output + stats_output + dps_output + weights_output
         + example_output
     )
+
+
+# Callbacks for disabling rotation options when inappropriate
+@app.callback(
+    Output('bearweave_options', 'is_open'),
+    Input('bearweave', 'value'))
+def disable_options(bearweave):
+    if bearweave:
+        return True
+    return False
 
 
 if __name__ == '__main__':
