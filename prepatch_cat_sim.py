@@ -347,6 +347,7 @@ class Player():
         self.miss_chance = 0.01 * (
             (8. - miss_reduction) + (6.5 - dodge_reduction)
         )
+        self.dodge_chance = 0.01 * (6.5 - dodge_reduction)
 
     def set_mana_regen(self):
         """Calculate and store mana regeneration rates based on specified regen
@@ -689,10 +690,25 @@ class Player():
             # Check for Omen and JoW procs
             self.check_procs(crit=crit)
 
-            # If in Dire Bear Form, generate Rage from the swing
-            if not self.cat_form:
+        # If in Dire Bear Form, generate Rage from the swing
+        if not self.cat_form:
+            # If the swing missed, then re-roll to see whether it was an actual
+            # miss or a dodge, since dodges still generate Rage.
+            dodge = False
+
+            if miss:
+                dodge = (np.random.rand() < self.dodge_chance/self.miss_chance)
+
+            if dodge:
+                # Determine how much damage a successful non-crit / non-glance
+                # auto would have done.
+                proxy_damage = 0.5 * (low + high) * (1 + 0.15 * self.enrage)
+            else:
+                proxy_damage = damage_done
+
+            if (not miss) or dodge:
                 rage_gen = (
-                    15./4./274.7 * damage_done + 2.5/2*3.5 * (1 + crit)
+                    15./4./274.7 * proxy_damage + 2.5/2*3.5 * (1 + crit)
                     + 5 * crit
                 )
                 self.rage = min(self.rage + rage_gen, 100)
