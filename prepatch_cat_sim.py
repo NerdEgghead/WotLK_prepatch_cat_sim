@@ -466,10 +466,10 @@ class Player():
         self.maul_low = (self.white_bear_low + 290 * self.multiplier) * 1.872
         self.maul_high = (self.white_bear_high + 290 * self.multiplier) * 1.872
         self.mangle_bear_low = 1.2 * (
-            self.white_bear_low * 1.15 + 115 * self.multiplier
+            self.white_bear_low * 1.15 + 155 * self.multiplier
         )
         self.mangle_bear_high = 1.2 * (
-            self.white_bear_high * 1.15 + 115 * self.multiplier
+            self.white_bear_high * 1.15 + 155 * self.multiplier
         )
 
         # Adjust damage values for Gift of Arthas
@@ -1535,6 +1535,7 @@ class Simulation():
             # ((not pending_actions) or (pending_actions[0][0] >= weave_end))
             ((not rip_refresh_pending) or (self.rip_end >= weave_end))
             and (not self.tf_expected_before(time, weave_end))
+            # and (not self.params['tigers_fury'])
         )
 
         floating_energy = 0
