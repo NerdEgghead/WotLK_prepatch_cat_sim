@@ -503,6 +503,26 @@ iteration_input = dbc.Col([
             id='biteweave_text_2'
         )
     ],),
+    dbc.Collapse(
+        [
+            dbc.InputGroup(
+                [
+                    dbc.InputGroupAddon(
+                        'Maximum Energy for Bite during Berserk:',
+                        addon_type='prepend'
+                    ),
+                    dbc.Input(
+                        value=30, min=18, step=1, type='number',
+                        id='berserk_bite_thresh'
+                    )
+                ],
+                style={
+                    'width': '65%', 'marginBottom': '1%', 'marginLeft': '5%'
+                }
+            )
+        ],
+        id='biteweave_options', is_open=True
+    ),
     dbc.Checklist(
         options=[{'label': ' use Rake', 'value': 'use_rake'}],
         value=['use_rake'], id='use_rake'
@@ -1474,6 +1494,7 @@ def plot_new_trajectory(sim, show_whites):
     State('prepop_berserk', 'value'),
     State('bearweave', 'value'),
     State('maul_rage_thresh', 'value'),
+    State('berserk_bite_thresh', 'value'),
     State('num_replicates', 'value'),
     State('latency', 'value'),
     State('calc_mana_weights', 'checked'),
@@ -1487,7 +1508,8 @@ def compute(
         intensity, fight_length, boss_armor, boss_debuffs, cooldowns, rip_cp,
         bite_cp, cd_delay, use_rake, use_innervate, use_biteweave, bite_time,
         bear_mangle, prepop_berserk, bearweave, maul_rage_thresh,
-        num_replicates, latency, calc_mana_weights, epic_gems, show_whites
+        berserk_bite_thresh, num_replicates, latency, calc_mana_weights,
+        epic_gems, show_whites
 ):
     ctx = dash.callback_context
 
@@ -1691,7 +1713,8 @@ def compute(
         use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
         use_berserk='berserk' in binary_talents,
         prepop_berserk=bool(prepop_berserk), bearweave=bool(bearweave),
-        maul_rage_thresh=maul_rage_thresh, trinkets=trinket_list,
+        maul_rage_thresh=maul_rage_thresh,
+        berserk_bite_thresh=berserk_bite_thresh, trinkets=trinket_list,
         haste_multiplier=haste_multiplier, hot_uptime=hot_uptime / 100.
     )
     sim.set_active_debuffs(boss_debuffs)
@@ -1732,11 +1755,11 @@ def compute(
 # Callbacks for disabling rotation options when inappropriate
 @app.callback(
     Output('bearweave_options', 'is_open'),
-    Input('bearweave', 'value'))
-def disable_options(bearweave):
-    if bearweave:
-        return True
-    return False
+    Output('biteweave_options', 'is_open'),
+    Input('bearweave', 'value'),
+    Input('use_biteweave', 'value'))
+def disable_options(bearweave, biteweave):
+    return (bool(bearweave), bool(biteweave))
 
 
 if __name__ == '__main__':

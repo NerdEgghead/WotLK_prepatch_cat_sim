@@ -1163,6 +1163,7 @@ class Simulation():
         'prepop_berserk': False,
         'bearweave': False,
         'maul_rage_thresh': 25,
+        'berserk_bite_thresh': 100
     }
 
     def __init__(
@@ -1486,6 +1487,7 @@ class Simulation():
             and (not self.player.omen_proc)
         )
         mangle_cost = self.player.mangle_cost
+
         bite_before_rip = (
             self.rip_debuff and self.strategy['use_bite']
             and (self.rip_end - time >= self.strategy['bite_time'])
@@ -1495,17 +1497,22 @@ class Simulation():
             and (not self.player.omen_proc)
         )
 
+        # During Berserk, we additionally add an Energy constraint on Bite
+        # usage to maximize the total Energy expenditure we can get.
+        if bite_now and self.player.berserk:
+            bite_now = (energy <= self.strategy['berserk_bite_thresh'])
+
         rake_now = (
             (self.strategy['use_rake']) and (not self.rake_debuff)
             and (self.fight_length - time > 9)
             and (not self.player.omen_proc)
         )
 
+        berserk_energy_thresh = 90 - 10 * self.player.omen_proc
         berserk_now = (
             self.strategy['use_berserk'] and (self.player.berserk_cd < 1e-9)
             and (self.player.tf_cd > 15)
-            and (not self.params['tigers_fury'])
-            and (energy < 90 - 10 * self.player.omen_proc)
+            and (energy < berserk_energy_thresh + 1e-9)
         )
 
         # First figure out how much Energy we must float in order to be able
@@ -1730,8 +1737,8 @@ class Simulation():
                 self.gen_log(time, 'Berserk', 'applied')
             )
 
-        if self.params['tigers_fury']:
-            self.drop_tigers_fury(time)
+        # if self.params['tigers_fury']:
+        #     self.drop_tigers_fury(time)
 
     def drop_berserk(self, time):
         """Remove Berserk buff and document if requested.
@@ -2034,9 +2041,8 @@ class Simulation():
 
             # If our Energy just dropped low enough, then cast Tiger's Fury
             #tf_energy_thresh = 30
-            tf_energy_thresh = 40 - 10 * (
-                max(self.player.gcd, self.latency) + self.player.omen_proc
-            )
+            leeway_time = max(self.player.gcd, self.latency)
+            tf_energy_thresh = 40 - 10 * (leeway_time + self.player.omen_proc)
             tf_now = (
                 (self.player.energy < tf_energy_thresh)
                 and (self.player.tf_cd < 1e-9) and (not self.player.berserk)
@@ -2044,6 +2050,17 @@ class Simulation():
             )
 
             if tf_now:
+                # If Berserk is available, then pool to 30 Energy before
+                # casting TF to maximize Berserk efficiency.
+                # if self.player.berserk_cd <= leeway_time:
+                #     delta_e = tf_energy_thresh - 10 - self.player.energy
+
+                #     if delta_e < 1e-9:
+                #         self.apply_tigers_fury(time)
+                #     else:
+                #         self.next_action = time + delta_e / 10.
+                # else:
+                #     self.apply_tigers_fury(time)
                 self.apply_tigers_fury(time)
 
             # Log current parameters
