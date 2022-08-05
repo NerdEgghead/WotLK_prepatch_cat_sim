@@ -1951,6 +1951,18 @@ class Simulation():
             for trinket in self.trinkets:
                 dmg_done += trinket.update(time, self.player, self)
 
+            # Use Enrage if appropriate
+            if ((not self.player.cat_form) and (self.player.enrage_cd < 1e-9)
+                    and (time < self.player.last_shift + 1.5 + 1e-9)):
+                self.player.rage = min(100, self.player.rage + 20)
+                self.player.enrage = True
+                self.player.enrage_cd = 60.
+
+                if self.log:
+                    self.combat_log.append(
+                        self.gen_log(time, 'Enrage', 'applied')
+                    )
+
             # Check if a melee swing happens at this time
             if time == self.swing_times[0]:
                 if self.player.cat_form:
