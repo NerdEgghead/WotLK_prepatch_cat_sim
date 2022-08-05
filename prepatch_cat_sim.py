@@ -1560,6 +1560,7 @@ class Simulation():
             ((not rip_refresh_pending) or (self.rip_end >= weave_end))
             and (not self.tf_expected_before(time, weave_end))
             # and (not self.params['tigers_fury'])
+            and (not self.player.berserk)
         )
 
         floating_energy = 0
