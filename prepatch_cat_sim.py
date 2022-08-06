@@ -224,8 +224,9 @@ class Player():
             t4_bonus=False, t6_2p=False, t6_4p=False, wolfshead=True,
             meta=False, bonus_damage=0, shred_bonus=0, debuff_ap=0,
             multiplier=1.1, omen=True, primal_gore=True, feral_aggression=0,
-            savage_fury=2, natural_shapeshifter=3, intensity=3, potp=2,
-            improved_mangle=0, weapon_speed=3.0, proc_trinkets=[], log=False
+            savage_fury=2, furor=3, natural_shapeshifter=3, intensity=3,
+            potp=2, improved_mangle=0, weapon_speed=3.0, proc_trinkets=[],
+            log=False
     ):
         """Initialize player with key damage parameters.
 
@@ -276,6 +277,7 @@ class Player():
                 Defaults to 2.
             savage_fury (int): Points taken in Savage Fury talent. Defaults
                 to 0.
+            furor (int): Points taken in Furor talent. Default to 3.
             natural_shapeshifter (int): Points taken in Natural Shapeshifter
                 talent. Defaults to 3.
             intensity (int): Points taken in Intensity talent. Defaults to 3.
@@ -326,6 +328,7 @@ class Player():
         self.primal_gore = primal_gore
         self.feral_aggression = feral_aggression
         self.savage_fury = savage_fury
+        self.furor = furor
         self.natural_shapeshifter = natural_shapeshifter
         self.intensity = intensity
         self.weapon_speed = weapon_speed
@@ -1028,7 +1031,7 @@ class Player():
 
         if self.cat_form:
             self.cat_form = False
-            self.rage = 10 * (np.random.rand() < 0.6)
+            self.rage = 10 * (np.random.rand() < 0.2 * self.furor)
 
             # Bundle Enrage with the bear shift if available
             if self.enrage_cd < 1e-9:
@@ -1038,7 +1041,9 @@ class Player():
                 log_str = 'use Enrage'
         else:
             self.cat_form = True
-            self.energy = min(self.energy, 60) + 20 * self.wolfshead
+            self.energy = (
+                min(self.energy, 20 * self.furor) + 20 * self.wolfshead
+            )
             self.enrage = False
 
         self.gcd = 1.5
@@ -1508,7 +1513,7 @@ class Simulation():
         pending_actions.sort()
 
         # Allow for bearweaving if the next pending action is >= 4.5s away
-        weave_energy = 30 - 20 * self.latency
+        weave_energy = min(20 * self.player.furor, 85) - 30 - 20 * self.latency
         weave_end = time + 4.5 + 2 * self.latency
         bearweave_now = (
             self.strategy['bearweave'] and (energy <= weave_energy)

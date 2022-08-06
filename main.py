@@ -24,35 +24,35 @@ app = dash.Dash(__name__, external_stylesheets=[dbc.themes.DARKLY])
 server = app.server
 
 default_input_stats = {
-        "agility": 778,
-        "armor": 4337,
+        "agility": 771,
+        "armor": 4323,
         "armorPen": 21.68,
         "armorPenRating": 146,
-        "attackPower": 4266,
-        "crit": 41.46,
+        "attackPower": 4252,
+        "crit": 41.28,
         "critRating": 78,
         "critReduction": 6,
         "defense": 350,
-        "dodge": 44.44,
+        "dodge": 44.13,
         "expertise": 16,
         "expertiseRating": 27,
         "feralAttackPower": 1195,
         "haste": 7.42,
         "hasteRating": 90,
-        "health": 10334,
+        "health": 10264,
         "hit": 5.14,
         "hitRating": 81,
-        "intellect": 317,
+        "intellect": 314,
         "mainHandSpeed": 3,
-        "mana": 6845,
+        "mana": 6800,
         "natureResist": 10,
         "parry": 5,
-        "spellCrit": 9.35,
+        "spellCrit": 9.31,
         "spellHaste": 7.42,
         "spellHit": 6.42,
-        "spirit": 158,
-        "stamina": 690,
-        "strength": 416
+        "spirit": 157,
+        "stamina": 683,
+        "strength": 413
 }
 
 stat_input = dbc.Col([
@@ -391,6 +391,49 @@ iteration_input = dbc.Col([
                 {'label': '3', 'value': 3},
             ],
             value='0', id='improved_mangle',
+            style={
+                'width': '20%', 'display': 'inline-block',
+                'marginBottom': '2.5%', 'marginRight': '5%'
+            }
+        )]),
+    html.Div([
+        html.Div(
+            'Improved Mark of the Wild:',
+            style={
+                'width': '35%', 'display': 'inline-block',
+                'fontWeight': 'bold'
+            }
+        ),
+        dbc.Select(
+            options=[
+                {'label': '0', 'value': 0},
+                {'label': '1', 'value': 1},
+                {'label': '2', 'value': 2},
+            ],
+            value=1, id='imp_motw',
+            style={
+                'width': '20%', 'display': 'inline-block',
+                'marginBottom': '2.5%', 'marginRight': '5%'
+            }
+        )]),
+    html.Div([
+        html.Div(
+            'Furor:',
+            style={
+                'width': '35%', 'display': 'inline-block',
+                'fontWeight': 'bold'
+            }
+        ),
+        dbc.Select(
+            options=[
+                {'label': '0', 'value': 0},
+                {'label': '1', 'value': 1},
+                {'label': '2', 'value': 2},
+                {'label': '3', 'value': 3},
+                {'label': '4', 'value': 4},
+                {'label': '5', 'value': 5},
+            ],
+            value=4, id='furor',
             style={
                 'width': '20%', 'display': 'inline-block',
                 'marginBottom': '2.5%', 'marginRight': '5%'
@@ -1152,8 +1195,8 @@ def create_player(
         buffed_mana_pool, buffed_int, buffed_spirit, buffed_mp5, weapon_speed,
         unleashed_rage, kings, raven_idol, other_buffs, stat_debuffs,
         cooldowns, bonuses, binary_talents, naturalist, feral_aggression,
-        savage_fury, potp, improved_mangle, natural_shapeshifter, intensity,
-        potion
+        savage_fury, potp, improved_mangle, imp_motw, furor,
+        natural_shapeshifter, intensity, potion
 ):
     """Takes in raid buffed player stats from Eighty Upgrades, modifies them
     based on boss debuffs and miscellaneous buffs not captured by Eighty
@@ -1198,7 +1241,7 @@ def create_player(
         omen='omen' in binary_talents,
         primal_gore='primal_gore' in binary_talents,
         feral_aggression=int(feral_aggression), savage_fury=int(savage_fury),
-        potp=int(potp), improved_mangle=int(improved_mangle),
+        potp=int(potp), improved_mangle=int(improved_mangle), furor=int(furor),
         natural_shapeshifter=int(natural_shapeshifter),
         intensity=int(intensity), weapon_speed=weapon_speed,
         bonus_damage=encounter_weapon_damage, multiplier=damage_multiplier,
@@ -1209,13 +1252,14 @@ def create_player(
         pot=potion in ['super', 'fel'], cheap_pot=(potion == 'super'),
         shred_bonus=shred_bonus, debuff_ap=debuff_ap
     )
-    return player, ap_mod, (1 + 0.1 * kings) * 1.06 * 1.02, haste_multiplier
+    stat_mod = (1 + 0.1 * kings) * 1.06 * (1 + 0.01 * imp_motw)
+    return player, ap_mod, stat_mod, haste_multiplier
 
 
 def apply_buffs(
         unbuffed_ap, unbuffed_strength, unbuffed_agi, unbuffed_hit,
         unbuffed_crit, unbuffed_mana, unbuffed_int, unbuffed_spirit,
-        unbuffed_mp5, weapon_damage, raid_buffs, consumables
+        unbuffed_mp5, weapon_damage, raid_buffs, consumables, imp_motw
 ):
     """Takes in unbuffed player stats, and turns them into buffed stats based
     on specified consumables and raid buffs. This function should only be
@@ -1228,21 +1272,22 @@ def apply_buffs(
     raw_mana_unbuffed = unbuffed_mana - 15 * unbuffed_int
 
     # Augment all base stats based on specified buffs
+    gear_multi = 1.06 * (1 + 0.01 * imp_motw)
     stat_multiplier = 1 + 0.1 * ('kings' in raid_buffs)
     added_stats = 19.6 * ('motw' in raid_buffs)
 
-    buffed_strength = stat_multiplier * (unbuffed_strength + 1.06 * 1.02 * (
+    buffed_strength = stat_multiplier * (unbuffed_strength + gear_multi * (
         added_stats + 86 * ('str_totem' in raid_buffs)
     ))
-    buffed_agi = stat_multiplier * (unbuffed_agi + 1.06 * 1.02 * (
+    buffed_agi = stat_multiplier * (unbuffed_agi + gear_multi * (
         added_stats + 86 * ('str_totem' in raid_buffs)
         + 30 * ('agi_elixir' in consumables) + 20 * ('food' in consumables)
     ))
-    buffed_int = stat_multiplier * (unbuffed_int + 1.2 * 1.06 * 1.02 * (
+    buffed_int = stat_multiplier * (unbuffed_int + 1.2 * gear_multi * (
         added_stats + 40 * ('ai' in raid_buffs)
         + 30 * ('draenic' in consumables)
     ))
-    buffed_spirit = stat_multiplier * (unbuffed_spirit + 1.06 * 1.02 * (
+    buffed_spirit = stat_multiplier * (unbuffed_spirit + gear_multi * (
         added_stats + 50 * ('spirit' in raid_buffs)
         + 20 * ('food' in consumables) + 30 * ('draenic' in consumables)
     ))
@@ -1366,7 +1411,7 @@ def append_mana_weights(
 
 def calc_weights(
         sim, num_replicates, avg_dps, calc_mana_weights, time_to_oom,
-        kings, unleashed_rage, epic_gems
+        kings, unleashed_rage, epic_gems, imp_motw
 ):
     # Check that sufficient iterations are used for convergence.
     if num_replicates < 20000:
@@ -1399,7 +1444,7 @@ def calc_weights(
         ]))
 
     # Generate 70upgrades import link for raw stats
-    stat_multiplier = (1 + 0.1 * kings) * 1.06 * 1.02
+    stat_multiplier = (1 + 0.1 * kings) * 1.06 * (1 + 0.01 * imp_motw)
     url = ccs.gen_import_link(
         stat_weights, multiplier=stat_multiplier, epic_gems=epic_gems
     )
@@ -1487,6 +1532,7 @@ def plot_new_trajectory(sim, show_whites):
     Input('other_buffs', 'value'),
     Input('raven_idol', 'value'),
     Input('stat_debuffs', 'value'),
+    Input('imp_motw', 'value'),
     Input('trinket_1', 'value'),
     Input('trinket_2', 'value'),
     Input('run_button', 'n_clicks'),
@@ -1500,6 +1546,7 @@ def plot_new_trajectory(sim, show_whites):
     State('savage_fury', 'value'),
     State('potp', 'value'),
     State('improved_mangle', 'value'),
+    State('furor', 'value'),
     State('naturalist', 'value'),
     State('natural_shapeshifter', 'value'),
     State('intensity', 'value'),
@@ -1526,18 +1573,19 @@ def plot_new_trajectory(sim, show_whites):
     State('show_whites', 'checked'))
 def compute(
         json_file, consumables, raid_buffs, other_buffs, raven_idol,
-        stat_debuffs, trinket_1, trinket_2, run_clicks, weight_clicks,
-        graph_clicks, hot_uptime, potion, bonuses, binary_talents,
-        feral_aggression, savage_fury, potp, improved_mangle, naturalist,
-        natural_shapeshifter, intensity, fight_length, boss_armor,
-        boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay, use_rake,
-        mangle_spam, use_biteweave, bite_time, bear_mangle, prepop_berserk,
-        bearweave, maul_rage_thresh, berserk_bite_thresh, num_replicates,
-        latency, calc_mana_weights, epic_gems, show_whites
+        stat_debuffs, imp_motw, trinket_1, trinket_2, run_clicks,
+        weight_clicks, graph_clicks, hot_uptime, potion, bonuses,
+        binary_talents, feral_aggression, savage_fury, potp, improved_mangle,
+        furor, naturalist, natural_shapeshifter, intensity, fight_length,
+        boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
+        use_rake, mangle_spam, use_biteweave, bite_time, bear_mangle,
+        prepop_berserk, bearweave, maul_rage_thresh, berserk_bite_thresh,
+        num_replicates, latency, calc_mana_weights, epic_gems, show_whites
 ):
     ctx = dash.callback_context
 
     # Parse input stats JSON
+    imp_motw = int(imp_motw)
     buffs_present = False
     use_default_inputs = True
 
@@ -1617,6 +1665,7 @@ def compute(
             input_stats['mana'], input_stats['intellect'],
             input_stats['spirit'], input_stats.get('mp5', 0),
             input_stats.get('weaponDamage', 0), raid_buffs, consumables,
+            imp_motw
         ))
 
     # Determine whether Unleashed Rage and/or Blessing of Kings are present, as
@@ -1645,8 +1694,8 @@ def compute(
         input_stats.get('mp5', 0), float(input_stats['mainHandSpeed']),
         unleashed_rage, kings, raven_idol, other_buffs, stat_debuffs,
         cooldowns, bonuses, binary_talents, naturalist, feral_aggression,
-        savage_fury, potp, improved_mangle, natural_shapeshifter, intensity,
-        potion
+        savage_fury, potp, improved_mangle, imp_motw, furor,
+        natural_shapeshifter, intensity, potion
     )
 
     # Process trinkets
@@ -1759,7 +1808,7 @@ def compute(
             (ctx.triggered[0]['prop_id'] == 'weight_button.n_clicks')):
         weights_output = calc_weights(
             sim, num_replicates, avg_dps, calc_mana_weights, dps_output[2],
-            kings, unleashed_rage, epic_gems
+            kings, unleashed_rage, epic_gems, imp_motw
         )
     else:
         weights_output = ('Stat Breakdown', '', [], '')
