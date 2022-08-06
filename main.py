@@ -377,6 +377,27 @@ iteration_input = dbc.Col([
         )]),
     html.Div([
         html.Div(
+            'Improved Mangle:',
+            style={
+                'width': '35%', 'display': 'inline-block',
+                'fontWeight': 'bold'
+            }
+        ),
+        dbc.Select(
+            options=[
+                {'label': '0', 'value': 0},
+                {'label': '1', 'value': 1},
+                {'label': '2', 'value': 2},
+                {'label': '3', 'value': 3},
+            ],
+            value='0', id='improved_mangle',
+            style={
+                'width': '20%', 'display': 'inline-block',
+                'marginBottom': '2.5%', 'marginRight': '5%'
+            }
+        )]),
+    html.Div([
+        html.Div(
             'Naturalist:',
             style={
                 'width': '35%', 'display': 'inline-block',
@@ -528,8 +549,8 @@ iteration_input = dbc.Col([
         value=['use_rake'], id='use_rake'
     ),
     dbc.Checklist(
-        options=[{'label': ' use Innervate', 'value': 'use_innervate'}],
-        value=[], id='use_innervate'
+        options=[{'label': ' use Mangle over Shred', 'value': 'mangle_spam'}],
+        value=[], id='mangle_spam'
     ),
     dbc.Checklist(
         options=[{
@@ -1131,7 +1152,8 @@ def create_player(
         buffed_mana_pool, buffed_int, buffed_spirit, buffed_mp5, weapon_speed,
         unleashed_rage, kings, raven_idol, other_buffs, stat_debuffs,
         cooldowns, bonuses, binary_talents, naturalist, feral_aggression,
-        savage_fury, potp, natural_shapeshifter, intensity, potion
+        savage_fury, potp, improved_mangle, natural_shapeshifter, intensity,
+        potion
 ):
     """Takes in raid buffed player stats from Eighty Upgrades, modifies them
     based on boss debuffs and miscellaneous buffs not captured by Eighty
@@ -1176,7 +1198,8 @@ def create_player(
         omen='omen' in binary_talents,
         primal_gore='primal_gore' in binary_talents,
         feral_aggression=int(feral_aggression), savage_fury=int(savage_fury),
-        potp=int(potp), natural_shapeshifter=int(natural_shapeshifter),
+        potp=int(potp), improved_mangle=int(improved_mangle),
+        natural_shapeshifter=int(natural_shapeshifter),
         intensity=int(intensity), weapon_speed=weapon_speed,
         bonus_damage=encounter_weapon_damage, multiplier=damage_multiplier,
         jow='jow' in stat_debuffs, armor_pen_rating=armor_pen_rating,
@@ -1476,6 +1499,7 @@ def plot_new_trajectory(sim, show_whites):
     State('feral_aggression', 'value'),
     State('savage_fury', 'value'),
     State('potp', 'value'),
+    State('improved_mangle', 'value'),
     State('naturalist', 'value'),
     State('natural_shapeshifter', 'value'),
     State('intensity', 'value'),
@@ -1487,7 +1511,7 @@ def plot_new_trajectory(sim, show_whites):
     State('bite_cp', 'value'),
     State('cd_delay', 'value'),
     State('use_rake', 'value'),
-    State('use_innervate', 'value'),
+    State('mangle_spam', 'value'),
     State('use_biteweave', 'value'),
     State('bite_time', 'value'),
     State('bear_mangle', 'value'),
@@ -1504,12 +1528,12 @@ def compute(
         json_file, consumables, raid_buffs, other_buffs, raven_idol,
         stat_debuffs, trinket_1, trinket_2, run_clicks, weight_clicks,
         graph_clicks, hot_uptime, potion, bonuses, binary_talents,
-        feral_aggression, savage_fury, potp, naturalist, natural_shapeshifter,
-        intensity, fight_length, boss_armor, boss_debuffs, cooldowns, rip_cp,
-        bite_cp, cd_delay, use_rake, use_innervate, use_biteweave, bite_time,
-        bear_mangle, prepop_berserk, bearweave, maul_rage_thresh,
-        berserk_bite_thresh, num_replicates, latency, calc_mana_weights,
-        epic_gems, show_whites
+        feral_aggression, savage_fury, potp, improved_mangle, naturalist,
+        natural_shapeshifter, intensity, fight_length, boss_armor,
+        boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay, use_rake,
+        mangle_spam, use_biteweave, bite_time, bear_mangle, prepop_berserk,
+        bearweave, maul_rage_thresh, berserk_bite_thresh, num_replicates,
+        latency, calc_mana_weights, epic_gems, show_whites
 ):
     ctx = dash.callback_context
 
@@ -1621,7 +1645,8 @@ def compute(
         input_stats.get('mp5', 0), float(input_stats['mainHandSpeed']),
         unleashed_rage, kings, raven_idol, other_buffs, stat_debuffs,
         cooldowns, bonuses, binary_talents, naturalist, feral_aggression,
-        savage_fury, potp, natural_shapeshifter, intensity, potion
+        savage_fury, potp, improved_mangle, natural_shapeshifter, intensity,
+        potion
     )
 
     # Process trinkets
@@ -1709,8 +1734,8 @@ def compute(
     sim = ccs.Simulation(
         player, fight_length + 1e-9, 0.001 * latency, boss_armor=boss_armor,
         min_combos_for_rip=rip_combos, min_combos_for_bite=int(bite_cp),
-        use_innervate=bool(use_innervate), use_rake=bool(use_rake),
-        use_bite=bite, bite_time=bite_time, bear_mangle=bool(bear_mangle),
+        mangle_spam=bool(mangle_spam), use_rake=bool(use_rake), use_bite=bite,
+        bite_time=bite_time, bear_mangle=bool(bear_mangle),
         use_berserk='berserk' in binary_talents,
         prepop_berserk=bool(prepop_berserk), bearweave=bool(bearweave),
         maul_rage_thresh=maul_rage_thresh,

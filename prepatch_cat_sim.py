@@ -225,7 +225,7 @@ class Player():
             meta=False, bonus_damage=0, shred_bonus=0, debuff_ap=0,
             multiplier=1.1, omen=True, primal_gore=True, feral_aggression=0,
             savage_fury=2, natural_shapeshifter=3, intensity=3, potp=2,
-            weapon_speed=3.0, proc_trinkets=[], log=False
+            improved_mangle=0, weapon_speed=3.0, proc_trinkets=[], log=False
     ):
         """Initialize player with key damage parameters.
 
@@ -281,6 +281,8 @@ class Player():
             intensity (int): Points taken in Intensity talent. Defaults to 3.
             potp (int): Points taken in Protector of the Pack talent. Defaults
                 to 2.
+            improved_mangle (int): Points taken in Improved Mangle talent.
+                Defaults to 0.
             weapon_speed (float): Equipped weapon speed, used for calculating
                 Omen of Clarity proc rate. Defaults to 3.0.
             proc_trinkets (list of trinkets.ProcTrinket): If applicable, a list
@@ -315,7 +317,7 @@ class Player():
         self.t4_bonus = t4_bonus
         self.bonus_damage = bonus_damage
         self.shred_bonus = shred_bonus
-        self._mangle_cost = 40 - 5 * t6_2p
+        self._mangle_cost = 40 - 5 * t6_2p - 2 * improved_mangle
         self.t6_bonus = t6_4p
         self.wolfshead = wolfshead
         self.meta = meta
@@ -1157,7 +1159,7 @@ class Simulation():
         'use_bite': True,
         'bite_time': 8.0,
         'min_combos_for_bite': 5,
-        'use_innervate': True,
+        'mangle_spam': False,
         'bear_mangle': False,
         'use_berserk': False,
         'prepop_berserk': False,
@@ -1268,53 +1270,6 @@ class Simulation():
             '%d' % self.player.combo_points, '%d' % self.player.mana,
             '%d' % self.player.rage
         ]
-
-    def innervate_or_shift(self, time):
-        """Decide whether to cast Innervate or perform a normal powershift.
-
-        Arguments:
-            time (float): Current simulation time in seconds.
-        """
-        self.waiting_for_tick = False
-
-        # If we have just now decided to shift, then we do not execute the
-        # shift immediately, but instead trigger an input delay for realism.
-        if not self.player.ready_to_shift:
-            self.player.ready_to_shift = True
-            return
-
-        self.player.ready_to_shift = False
-
-        # Only Innervate if (a) we don't have enough mana for two shifts, (b)
-        # the fight isn't ending, and (c) Innervate is not on cooldown.
-        if (self.strategy['use_innervate']
-                and (self.player.mana <= self.innervate_threshold)
-                and (time < self.fight_length - 1.6)
-                and (self.player.innervate_cd < 1e-9)):
-            # First execute the Innervate cast. Player object will track the
-            # time of cast.
-            self.player.innervate(time)
-
-            # Next we need to reset the melee swing timer since we're staying
-            # in caster form. We'll use the same logic as at the start of
-            # combat, setting the first swing just slightly after the shift
-            # back into cat.
-            self.update_swing_times(
-                time + 1.5 + 0.1 * np.random.rand(), self.swing_timer,
-                first_swing=True
-            )
-        else:
-            self.player.shift(time)
-
-            # Manually activate Haste Potion if off cooldown
-            if (self.haste_pot is not None) and self.haste_pot.apply_proc():
-                self.haste_pot.activate(time, self.player, self)
-
-        # If needed, squeeze in a weapon swap into the same GCD
-        if (not self.mcp_equipped) and (self.num_mcp >= 1):
-            self.mcp_equipped = True
-            self.mcp_cd = 30.0
-            self.num_mcp -= 1
 
     def mangle(self, time):
         """Instruct the Player to Mangle, and perform related bookkeeping.
@@ -1618,6 +1573,10 @@ class Simulation():
             time_to_next_action = (self.player.rake_cost - energy) / 10.
         elif bearweave_now:
             self.player.ready_to_shift = True
+        elif self.strategy['mangle_spam'] and (not self.player.omen_proc):
+            if excess_e >= mangle_cost:
+                return self.mangle(time)
+            time_to_next_action = (mangle_cost - excess_e) / 10.
         else:
             if (excess_e >= self.player.shred_cost) or self.player.omen_proc:
                 return self.shred()
