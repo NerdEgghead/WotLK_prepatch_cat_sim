@@ -521,8 +521,8 @@ class Player():
         self.dmg_breakdown = collections.OrderedDict()
 
         for cast_type in [
-            'Melee', 'Mangle', 'Shred', 'Rip', 'Rake', 'Ferocious Bite',
-            'Shift', 'Maul'
+            'Melee', 'Mangle (Cat)', 'Shred', 'Rip', 'Rake', 'Ferocious Bite',
+            'Shift', 'Maul', 'Mangle (Bear)'
         ]:
             self.dmg_breakdown[cast_type] = {'casts': 0, 'damage': 0.0}
 
@@ -911,11 +911,13 @@ class Player():
         """
         if self.cat_form:
             dmg, success = self.execute_builder(
-                'Mangle', self.mangle_low, self.mangle_high, self.mangle_cost
+                'Mangle (Cat)', self.mangle_low, self.mangle_high,
+                self.mangle_cost
             )
         else:
             dmg, success = self.execute_bear_special(
-                'Mangle', self.mangle_bear_low, self.mangle_bear_high, 15
+                'Mangle (Bear)', self.mangle_bear_low, self.mangle_bear_high,
+                15
             )
 
         # Since a handful of proc effects trigger only on Mangle, we separately
