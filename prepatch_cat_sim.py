@@ -1395,6 +1395,67 @@ class Simulation():
             return (self.berserk_end < future_time)
         return True
 
+    def can_bite_analytical(self, time):
+        """Analytical alternative to the empirical bite_time parameter used for
+        determining whether there is sufficient time left before Rip falls off
+        to fit in a Ferocious Bite.
+
+        Arguments:
+            time (float): Current simulation time in seconds.
+
+        Returns:
+            can_bite (bool): True if the analytical model indicates that Biting
+                now is optimal, False otherwise.
+        """
+        # First calculate how much Energy we expect to accumulate before Rip
+        # expires.
+        ripdur = self.rip_end - time
+        expected_energy_gain = 10 * ripdur
+
+        if self.tf_expected_before(time, self.rip_end):
+            expected_energy_gain += 60
+        if self.player.omen:
+            expected_energy_gain += ripdur / self.swing_timer * (
+                3.5 / 60. * (1 - self.player.miss_chance) * 42
+            )
+
+        expected_energy_gain += ripdur / self.revitalize_frequency * 0.15 * 8
+        total_energy_available = self.player.energy + expected_energy_gain
+
+        # Now calculate the effective Energy cost for Biting now, which
+        # includes the cost of the Ferocious Bite itself, the cost of building
+        # 5 CPs for Rip, and the cost of Rip.
+        ripcost = 15 if self.berserk_expected_at(time, self.rip_end) else 30
+
+        if self.player.energy >= self.player.bite_cost:
+            bitecost = min(self.player.bite_cost + 30, self.player.energy)
+        else:
+            bitecost = self.player.bite_cost + 10 * self.latency
+
+        cp_per_builder = 1 + self.player.crit_chance
+        cost_per_builder = (42. + 42. + 35.) / 3. # ignore Berserk here
+        total_energy_cost = (
+            bitecost + 5. / cp_per_builder * cost_per_builder + ripcost
+        )
+
+        # Actual Energy cost is a bit lower than this because it is okay to
+        # lose a few seconds of Rip uptime to gain a Bite.
+        crit_factor = 2.2 * (1 + 0.03 * self.player.meta) - 1
+        bite_dpc = (
+            0.5 * (self.player.bite_low[5] + self.player.bite_high[5])
+            * (1 + crit_factor * (self.player.crit_chance + 0.25))
+        )
+        avg_rip_tick = self.rip_damage * 1.3 * (
+            1 + crit_factor * self.player.crit_chance * self.player.primal_gore
+        )
+        allowed_rip_downtime = bite_dpc / avg_rip_tick * 2
+        total_energy_cost -= 10 * allowed_rip_downtime
+
+        # Then we simply recommend Biting now if the available Energy to do so
+        # exceeds the effective cost.
+        return (total_energy_available > total_energy_cost)
+
+
     def execute_rotation(self, time):
         """Execute the next player action in the DPS rotation according to the
         specified player strategy in the simulation.
@@ -1453,6 +1514,7 @@ class Simulation():
         bite_before_rip = (
             self.rip_debuff and self.strategy['use_bite']
             and (self.rip_end - time >= self.strategy['bite_time'])
+            # and self.can_bite_analytical(time)
         )
         bite_now = (
             (bite_before_rip or bite_at_end) and (cp >= bite_cp)
