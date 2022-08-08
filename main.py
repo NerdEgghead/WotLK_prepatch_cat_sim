@@ -601,11 +601,27 @@ iteration_input = dbc.Col([
             'value': 'bear_mangle'
         }], value=[], id='bear_mangle'
     ),
-    dbc.Checklist(
-        options=[{
-            'label': ' pre-pop Berserk 1 second before combat starts',
-            'value': 'prepop_berserk'
-        }], value=['prepop_berserk'], id='prepop_berserk'
+    dbc.Collapse(
+        [
+            dbc.Checklist(
+                options=[{
+                    'label': ' pre-pop Berserk 1 second before combat starts',
+                    'value': 'prepop_berserk'
+                }], value=['prepop_berserk'], id='prepop_berserk'
+            ),
+        ],
+        id='berserk_options', is_open=True
+    ),
+    dbc.Collapse(
+        [
+            dbc.Checklist(
+                options=[{
+                    'label': ' pre-proc Clearcasting before combat starts',
+                    'value': 'preproc_omen'
+                }], value=['preproc_omen'], id='preproc_omen'
+            ),
+        ],
+        id='omen_options', is_open=True
     ),
     dbc.Checklist(
         options=[{'label': ' enable bearweaving', 'value': 'bearweave'}],
@@ -1563,6 +1579,7 @@ def plot_new_trajectory(sim, show_whites):
     State('bite_time', 'value'),
     State('bear_mangle', 'value'),
     State('prepop_berserk', 'value'),
+    State('preproc_omen', 'value'),
     State('bearweave', 'value'),
     State('maul_rage_thresh', 'value'),
     State('berserk_bite_thresh', 'value'),
@@ -1579,8 +1596,9 @@ def compute(
         furor, naturalist, natural_shapeshifter, intensity, fight_length,
         boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
         use_rake, mangle_spam, use_biteweave, bite_time, bear_mangle,
-        prepop_berserk, bearweave, maul_rage_thresh, berserk_bite_thresh,
-        num_replicates, latency, calc_mana_weights, epic_gems, show_whites
+        prepop_berserk, preproc_omen, bearweave, maul_rage_thresh,
+        berserk_bite_thresh, num_replicates, latency, calc_mana_weights,
+        epic_gems, show_whites
 ):
     ctx = dash.callback_context
 
@@ -1786,8 +1804,8 @@ def compute(
         mangle_spam=bool(mangle_spam), use_rake=bool(use_rake), use_bite=bite,
         bite_time=bite_time, bear_mangle=bool(bear_mangle),
         use_berserk='berserk' in binary_talents,
-        prepop_berserk=bool(prepop_berserk), bearweave=bool(bearweave),
-        maul_rage_thresh=maul_rage_thresh,
+        prepop_berserk=bool(prepop_berserk), preproc_omen=bool(preproc_omen),
+        bearweave=bool(bearweave), maul_rage_thresh=maul_rage_thresh,
         berserk_bite_thresh=berserk_bite_thresh, trinkets=trinket_list,
         haste_multiplier=haste_multiplier, hot_uptime=hot_uptime / 100.
     )
@@ -1830,10 +1848,16 @@ def compute(
 @app.callback(
     Output('bearweave_options', 'is_open'),
     Output('biteweave_options', 'is_open'),
+    Output('berserk_options', 'is_open'),
+    Output('omen_options', 'is_open'),
     Input('bearweave', 'value'),
-    Input('use_biteweave', 'value'))
-def disable_options(bearweave, biteweave):
-    return (bool(bearweave), bool(biteweave))
+    Input('use_biteweave', 'value'),
+    Input('binary_talents', 'value'))
+def disable_options(bearweave, biteweave, binary_talents):
+    return (
+        bool(bearweave), bool(biteweave), 'berserk' in binary_talents,
+        'omen' in binary_talents
+    )
 
 
 if __name__ == '__main__':

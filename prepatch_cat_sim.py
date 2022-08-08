@@ -1170,6 +1170,7 @@ class Simulation():
         'bear_mangle': False,
         'use_berserk': False,
         'prepop_berserk': False,
+        'preproc_omen': False,
         'bearweave': False,
         'maul_rage_thresh': 25,
         'berserk_bite_thresh': 100
@@ -1903,6 +1904,10 @@ class Simulation():
         # Pre-pop Berserk if requested
         if self.strategy['use_berserk'] and self.strategy['prepop_berserk']:
             self.apply_berserk(-1.0, prepop=True)
+
+        # Pre-proc Clearcasting if requested
+        if self.strategy['preproc_omen'] and self.player.omen:
+            self.player.omen_proc = True
 
         # Create placeholder for time to OOM if the player goes OOM in the run
         self.time_to_oom = None
