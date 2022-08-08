@@ -477,6 +477,8 @@ class Player():
         self.mangle_bear_high = 1.2 * (
             self.white_bear_high * 1.15 + 155 * self.multiplier
         )
+        self.lacerate_hit = (31 + 0.01 * bear_ap) * self.multiplier
+        self.lacerate_tick = self.lacerate_hit / armor_multiplier # for 1 stack
 
         # Adjust damage values for Gift of Arthas
         if not gift_of_arthas:
@@ -518,6 +520,7 @@ class Player():
         self.berserk_cd = 0.0
         self.enrage = False
         self.enrage_cd = 0.0
+        self.mangle_cd = 0.0
         self.set_ability_costs()
 
         # Create dictionary to hold breakdown of total casts and damage
@@ -525,7 +528,7 @@ class Player():
 
         for cast_type in [
             'Melee', 'Mangle (Cat)', 'Shred', 'Rip', 'Rake', 'Ferocious Bite',
-            'Shift', 'Maul', 'Mangle (Bear)'
+            'Shift', 'Maul', 'Mangle (Bear)', 'Lacerate'
         ]:
             self.dmg_breakdown[cast_type] = {'casts': 0, 'damage': 0.0}
 
@@ -886,6 +889,7 @@ class Player():
 
         Returns:
             damage_done (float): Damage done by the Shred cast.
+            success (bool): Whether the Shred landed successfully.
         """
         damage_done, success = self.execute_builder(
             'Shred', self.shred_low, self.shred_high, self.shred_cost,
@@ -898,12 +902,25 @@ class Player():
 
         Returns:
             damage_done (float): Damage done by the Rake cast.
+            success (bool): Whether the Rake landed successfully.
         """
         damage_done, success = self.execute_builder(
             'Rake', self.rake_hit, self.rake_hit, self.rake_cost,
             mangle_mod=True
         )
         return damage_done, success
+
+    def lacerate(self):
+        """Execute a Lacerate.
+
+        Returns:
+            damage_done (float): Damage done just by the Lacerate cast itself.
+            success (bool): Whether the Lacerate debuff was successfully
+                applied or refreshed.
+        """
+        return self.execute_bear_special(
+            'Lacerate', self.lacerate_hit, self.lacerate_hit, 13
+        )
 
     def mangle(self):
         """Execute a Mangle.
@@ -922,6 +939,7 @@ class Player():
                 'Mangle (Bear)', self.mangle_bear_low, self.mangle_bear_high,
                 15
             )
+            self.mangle_cd = 6.0
 
         # Since a handful of proc effects trigger only on Mangle, we separately
         # check for those procs here if the Mangle landed successfully.
@@ -1319,6 +1337,47 @@ class Simulation():
 
         return damage_done
 
+    def lacerate(self, time):
+        """Instruct the Player to Lacerate, and perform related bookkeeping.
+
+        Arguments:
+            time (float): Current simulation time in seconds.
+
+        Returns:
+            damage_done (float): Damage done by the Lacerate initial hit.
+        """
+        damage_done, success = self.player.lacerate()
+
+        if success:
+            self.lacerate_end = time + 15.0
+
+            if self.lacerate_debuff:
+                # Unlike our other bleeds, Lacerate maintains its tick rate
+                # when it is refreshed, so we simply append more ticks to
+                # extend the duration. Note that the current implementation
+                # allows for Lacerate to be refreshed *after* the final tick
+                # goes out as long as it happens before the duration expires.
+                if self.lacerate_ticks:
+                    last_tick = self.lacerate_ticks[-1]
+                else:
+                    last_tick = self.last_lacerate_tick
+
+                self.lacerate_ticks += list(np.arange(
+                    last_tick + 3, self.lacerate_end + 1e-9, 3
+                ))
+                self.lacerate_stacks = min(self.lacerate_stacks + 1, 5)
+            else:
+                self.lacerate_debuff = True
+                self.lacerate_ticks = list(np.arange(time + 3, time + 16, 3))
+                self.lacerate_stacks = 1
+
+            self.lacerate_damage = (
+                self.player.lacerate_tick * self.lacerate_stacks
+                * (1 + 0.15 * self.player.enrage)
+            )
+
+        return damage_done * (1 + 0.3 * self.mangle_debuff)
+
     def rip(self, time):
         """Instruct Player to apply Rip, and perform related bookkeeping.
 
@@ -1334,7 +1393,6 @@ class Simulation():
             self.rip_ticks = list(np.arange(time + 2, time + 16.01, 2))
             self.rip_damage = damage_per_tick
 
-        self.waiting_for_energy = False
         return 0.0
 
     def shred(self):
@@ -1675,8 +1733,10 @@ class Simulation():
             )
             if shift_now:
                 self.player.ready_to_shift = True
-            elif self.player.rage >= 15:
+            elif (self.player.rage >= 15) and (self.player.mangle_cd < 1e-9):
                 return self.mangle(time)
+            elif self.player.rage >= 13:
+                return self.lacerate(time)
             else:
                 time_to_next_action = self.swing_times[0] - time
         elif berserk_now:
@@ -1869,6 +1929,7 @@ class Simulation():
         self.mangle_debuff = False
         self.rip_debuff = False
         self.rake_debuff = False
+        self.lacerate_debuff = False
         self.params['tigers_fury'] = False
         self.next_action = 0.0
 
@@ -1948,6 +2009,7 @@ class Simulation():
             self.player.tf_cd = max(0.0, self.player.tf_cd - delta_t)
             self.player.berserk_cd = max(0.0, self.player.berserk_cd - delta_t)
             self.player.enrage_cd = max(0.0, self.player.enrage_cd - delta_t)
+            self.player.mangle_cd = max(0.0, self.player.mangle_cd - delta_t)
 
             if (self.player.five_second_rule
                     and (time - self.player.last_shift >= 5)):
@@ -2030,6 +2092,37 @@ class Simulation():
                     self.combat_log.append(
                         self.gen_log(self.rake_end, 'Rake', 'falls off')
                     )
+
+            # Check if a Lacerate tick happens at this time
+            if (self.lacerate_debuff and self.lacerate_ticks
+                    and (time >= self.lacerate_ticks[0])):
+                self.last_lacerate_tick = time
+                tick_damage = self.lacerate_damage * (1+0.3*self.mangle_debuff)
+
+                if self.player.primal_gore:
+                    tick_damage, _, _ = calc_yellow_damage(
+                        tick_damage, tick_damage, 0.0, self.player.crit_chance,
+                        meta=self.player.meta,
+                        predatory_instincts=self.player.cat_form
+                    )
+
+                dmg_done += tick_damage
+                self.player.dmg_breakdown['Lacerate']['damage'] += tick_damage
+                self.lacerate_ticks.pop(0)
+
+                if self.log:
+                    self.combat_log.append(
+                        self.gen_log(time, 'Lacerate tick', '%d' % tick_damage)
+                    )
+
+            # Check if Lacerate fell off
+            if self.lacerate_debuff and (time > self.lacerate_end - 1e-9):
+                self.lacerate_debuff = False
+
+                if self.log:
+                    self.combat_log.append(self.gen_log(
+                        self.lacerate_end, 'Lacerate', 'falls off'
+                    ))
 
             # Roll for Revitalize procs at the pre-calculated frequency
             if time >= self.revitalize_frequency * (num_hot_ticks + 1):
@@ -2170,6 +2263,8 @@ class Simulation():
                 time = min(time, self.rip_ticks[0])
             if self.rake_debuff:
                 time = min(time, self.rake_ticks[0])
+            if self.lacerate_debuff and self.lacerate_ticks:
+                time = min(time, self.lacerate_ticks[0])
             if self.player.pot_active:
                 time = min(time, self.player.pot_ticks[0])
             if self.proc_end_times:
