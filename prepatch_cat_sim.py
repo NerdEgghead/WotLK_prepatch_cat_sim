@@ -1440,20 +1440,37 @@ class Simulation():
 
         # Actual Energy cost is a bit lower than this because it is okay to
         # lose a few seconds of Rip uptime to gain a Bite.
-        crit_factor = 2.2 * (1 + 0.03 * self.player.meta) - 1
-        bite_dpc = (
-            0.5 * (self.player.bite_low[5] + self.player.bite_high[5])
-            * (1 + crit_factor * (self.player.crit_chance + 0.25))
-        )
-        avg_rip_tick = self.rip_damage * 1.3 * (
-            1 + crit_factor * self.player.crit_chance * self.player.primal_gore
-        )
-        allowed_rip_downtime = bite_dpc / avg_rip_tick * 2
+        allowed_rip_downtime = self.calc_allowed_rip_downtime()
         total_energy_cost -= 10 * allowed_rip_downtime
 
         # Then we simply recommend Biting now if the available Energy to do so
         # exceeds the effective cost.
         return (total_energy_available > total_energy_cost)
+
+    def calc_allowed_rip_downtime(self):
+        """Determine how many seconds of Rip uptime can be lost in exchange for
+        a Ferocious Bite cast without losing damage. This calculation is used
+        in the analytical bite_time calculation above, as well as for
+        determining how close to the end of the fight we should be for
+        prioritizing Bite over Rip.
+
+        Returns:
+            allowed_rip_downtime (float): Maximum acceptable Rip duration loss,
+                in seconds.
+        """
+        rip_cp = self.strategy['min_combos_for_rip']
+        bite_cp = self.strategy['min_combos_for_bite']
+        crit_factor = 2.2 * (1 + 0.03 * self.player.meta) - 1
+        bite_base_dmg = 0.5 * (
+            self.player.bite_low[bite_cp] + self.player.bite_high[bite_cp]
+        )
+        bite_dpc = bite_base_dmg * (
+            1 + crit_factor * (self.player.crit_chance + 0.25)
+        )
+        avg_rip_tick = self.player.rip_tick[rip_cp] * 1.3 * (
+            1 + crit_factor * self.player.crit_chance * self.player.primal_gore
+        )
+        return bite_dpc / avg_rip_tick * 2
 
 
     def execute_rotation(self, time):
@@ -1491,6 +1508,7 @@ class Simulation():
         # 10/6/21 - Added logic to not cast Rip if we're near the end of the
         # fight.
         end_thresh = 10
+        # end_thresh = self.calc_allowed_rip_downtime()
         rip_now = (
             (cp >= rip_cp) and (not self.rip_debuff)
             and (self.fight_length - time >= end_thresh)
