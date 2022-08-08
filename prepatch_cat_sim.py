@@ -1630,15 +1630,17 @@ class Simulation():
         if not self.player.cat_form:
             # Shift back into Cat Form if (a) our first bear auto procced
             # Clearcasting, or (b) our first bear auto didn't generate enough
-            # Rage to Mangle, or (c) we just cast Mangle.
+            # Rage to Mangle or Maul, or (c) we just cast Mangle.
             shift_now = (
-                self.player.omen_proc or (self.player.rage < 15)
+                self.player.omen_proc or (self.player.rage < 10)
                 or (time - self.player.last_shift > 3 - 1e-9)
             )
             if shift_now:
                 self.player.ready_to_shift = True
-            else:
+            elif self.player.rage >= 15:
                 return self.mangle(time)
+            else:
+                time_to_next_action = self.swing_times[0] - time
         elif berserk_now:
             self.apply_berserk(time)
             return 0.0
