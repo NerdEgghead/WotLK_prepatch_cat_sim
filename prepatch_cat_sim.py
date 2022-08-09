@@ -1723,6 +1723,15 @@ class Simulation():
             and (not self.player.berserk)
         )
 
+        # If we're maintaining Lacerate, then allow for emergency bearweaves
+        # if Lacerate is about to fall off even if the above conditions do not
+        # apply.
+        emergency_bearweave = (
+            self.strategy['bearweave'] and self.strategy['lacerate_prio']
+            and self.lacerate_debuff
+            and (self.lacerate_end - time < 2.5 + self.latency)
+        )
+
         floating_energy = 0
         previous_time = time
         #tf_pending = False
@@ -1764,8 +1773,14 @@ class Simulation():
                 (not self.lacerate_debuff) or (self.lacerate_stacks < 5)
                 or (self.lacerate_end - time <= self.strategy['lacerate_time'])
             )
+            emergency_lacerate = (
+                self.strategy['lacerate_prio'] and self.lacerate_debuff
+                and (self.lacerate_end - time < 3.0 + 2 * self.latency)
+            )
 
-            if shift_now:
+            if emergency_lacerate and (self.player.rage >= 13):
+                return self.lacerate(time)
+            elif shift_now:
                 self.player.ready_to_shift = True
             elif lacerate_now and (self.player.rage >= 13):
                 return self.lacerate(time)
@@ -1775,6 +1790,8 @@ class Simulation():
                 return self.lacerate(time)
             else:
                 time_to_next_action = self.swing_times[0] - time
+        elif emergency_bearweave:
+            self.player.ready_to_shift = True
         elif berserk_now:
             self.apply_berserk(time)
             return 0.0
