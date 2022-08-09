@@ -1708,7 +1708,8 @@ class Simulation():
         pending_actions.sort()
 
         # Allow for bearweaving if the next pending action is >= 4.5s away
-        weave_energy = min(20 * self.player.furor, 85) - 30 - 20 * self.latency
+        furor_cap = min(20 * self.player.furor, 85)
+        weave_energy = furor_cap - 30 - 20 * self.latency
         weave_end = time + 4.5 + 2 * self.latency
         bearweave_now = (
             self.strategy['bearweave'] and (energy <= weave_energy)
@@ -1745,10 +1746,13 @@ class Simulation():
         if not self.player.cat_form:
             # Shift back into Cat Form if (a) our first bear auto procced
             # Clearcasting, or (b) our first bear auto didn't generate enough
-            # Rage to Mangle or Maul, or (c) we just cast Mangle.
+            # Rage to Mangle or Maul, or (c) we don't have enough time or
+            # Energy leeway to spend an additional GCD in Dire Bear Form.
             shift_now = (
                 self.player.omen_proc or (self.player.rage < 10)
-                or (time - self.player.last_shift > 3 - 1e-9)
+                # or (time - self.player.last_shift > 3 - 1e-9)
+                or (energy + 15 + 10 * self.latency > furor_cap)
+                or (rip_refresh_pending and (self.rip_end < time + 3.0))
             )
             if shift_now:
                 self.player.ready_to_shift = True
