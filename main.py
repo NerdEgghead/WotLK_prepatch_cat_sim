@@ -669,8 +669,40 @@ iteration_input = dbc.Col([
                         id='maul_rage_thresh'
                     )
                 ],
-                style={'width': '50%', 'marginTop': '1%', 'marginLeft': '5%'}
-            )
+                style={'width': '55%', 'marginTop': '1%', 'marginLeft': '5%'}
+            ),
+            dbc.Checklist(
+                options=[{
+                    'label': ' prioritize Lacerate maintenance over Mangle',
+                    'value': 'lacerate_prio'
+                }],
+                value=[], id='lacerate_prio',
+                style={'marginTop': '1%', 'marginLeft': '5%'}
+            ),
+            dbc.Collapse(
+                [
+                    dbc.InputGroup(
+                        [
+                            dbc.InputGroupAddon(
+                                'Refresh Lacerate with',
+                                addon_type='prepend'
+                            ),
+                            dbc.Input(
+                                type='number', value=10, id='lacerate_time',
+                                min=0, step=1
+                            ),
+                            dbc.InputGroupAddon(
+                                'seconds remaining', addon_type='append'
+                            )
+                        ],
+                        style={
+                            'width': '70%', 'marginBottom': '1%',
+                            'marginLeft': '5%', 'marginTop': '1%',
+                        }
+                    ),
+                ],
+                id='lacerate_options', is_open=True
+            ),
         ],
         id='bearweave_options', is_open=True
     ),
@@ -1614,6 +1646,8 @@ def plot_new_trajectory(sim, show_whites):
     State('bearweave', 'value'),
     State('maul_rage_thresh', 'value'),
     State('berserk_bite_thresh', 'value'),
+    State('lacerate_prio', 'value'),
+    State('lacerate_time', 'value'),
     State('num_replicates', 'value'),
     State('latency', 'value'),
     State('calc_mana_weights', 'checked'),
@@ -1628,8 +1662,8 @@ def compute(
         boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
         use_rake, mangle_spam, use_biteweave, bite_model, bite_time,
         bear_mangle, prepop_berserk, preproc_omen, bearweave, maul_rage_thresh,
-        berserk_bite_thresh, num_replicates, latency, calc_mana_weights,
-        epic_gems, show_whites
+        berserk_bite_thresh, lacerate_prio, lacerate_time, num_replicates,
+        latency, calc_mana_weights, epic_gems, show_whites
 ):
     ctx = dash.callback_context
 
@@ -1838,8 +1872,10 @@ def compute(
         use_berserk='berserk' in binary_talents,
         prepop_berserk=bool(prepop_berserk), preproc_omen=bool(preproc_omen),
         bearweave=bool(bearweave), maul_rage_thresh=maul_rage_thresh,
-        berserk_bite_thresh=berserk_bite_thresh, trinkets=trinket_list,
-        haste_multiplier=haste_multiplier, hot_uptime=hot_uptime / 100.
+        berserk_bite_thresh=berserk_bite_thresh,
+        lacerate_prio=bool(lacerate_prio), lacerate_time=lacerate_time,
+        trinkets=trinket_list, haste_multiplier=haste_multiplier,
+        hot_uptime=hot_uptime / 100.
     )
     sim.set_active_debuffs(boss_debuffs)
     player.calc_damage_params(**sim.params)
@@ -1883,14 +1919,19 @@ def compute(
     Output('berserk_options', 'is_open'),
     Output('omen_options', 'is_open'),
     Output('empirical_options', 'is_open'),
+    Output('lacerate_options', 'is_open'),
     Input('bearweave', 'value'),
     Input('use_biteweave', 'value'),
     Input('bite_model', 'value'),
+    Input('lacerate_prio', 'value'),
     Input('binary_talents', 'value'))
-def disable_options(bearweave, biteweave, bite_model, binary_talents):
+def disable_options(
+    bearweave, biteweave, bite_model, lacerate_prio, binary_talents
+):
     return (
         bool(bearweave), bool(biteweave), 'berserk' in binary_talents,
-        'omen' in binary_talents, bite_model == 'empirical'
+        'omen' in binary_talents, bite_model == 'empirical',
+        bool(lacerate_prio)
     )
 
 

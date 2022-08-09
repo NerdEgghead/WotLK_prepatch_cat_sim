@@ -1191,7 +1191,9 @@ class Simulation():
         'preproc_omen': False,
         'bearweave': False,
         'maul_rage_thresh': 25,
-        'berserk_bite_thresh': 100
+        'berserk_bite_thresh': 100,
+        'lacerate_prio': False,
+        'lacerate_time': 10.0,
     }
 
     def __init__(
@@ -1749,13 +1751,24 @@ class Simulation():
             # Rage to Mangle or Maul, or (c) we don't have enough time or
             # Energy leeway to spend an additional GCD in Dire Bear Form.
             shift_now = (
-                self.player.omen_proc or (self.player.rage < 10)
+                (self.player.rage < 10)
                 # or (time - self.player.last_shift > 3 - 1e-9)
                 or (energy + 15 + 10 * self.latency > furor_cap)
                 or (rip_refresh_pending and (self.rip_end < time + 3.0))
             )
+
+            if not self.strategy['lacerate_prio']:
+                shift_now = shift_now or self.player.omen_proc
+
+            lacerate_now = self.strategy['lacerate_prio'] and (
+                (not self.lacerate_debuff) or (self.lacerate_stacks < 5)
+                or (self.lacerate_end - time <= self.strategy['lacerate_time'])
+            )
+
             if shift_now:
                 self.player.ready_to_shift = True
+            elif lacerate_now and (self.player.rage >= 13):
+                return self.lacerate(time)
             elif (self.player.rage >= 15) and (self.player.mangle_cd < 1e-9):
                 return self.mangle(time)
             elif self.player.rage >= 13:
