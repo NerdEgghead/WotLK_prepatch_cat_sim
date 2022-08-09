@@ -1710,6 +1710,10 @@ class Simulation():
         # Allow for bearweaving if the next pending action is >= 4.5s away
         furor_cap = min(20 * self.player.furor, 85)
         weave_energy = furor_cap - 30 - 20 * self.latency
+
+        if self.player.enrage_cd > 1e-9:
+            weave_energy = min(weave_energy, 42)
+
         weave_end = time + 4.5 + 2 * self.latency
         bearweave_now = (
             self.strategy['bearweave'] and (energy <= weave_energy)
