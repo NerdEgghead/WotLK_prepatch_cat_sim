@@ -1454,6 +1454,22 @@ class Simulation():
             return (self.berserk_end < future_time)
         return True
 
+    def can_bite(self, time):
+        """Determine whether or not there is sufficient time left before Rip
+        falls off to fit in a Ferocious Bite. Uses either a fixed empirically
+        optimized time parameter or a first principles analytical calculation
+        depending on user options.
+
+        Arguments:
+            time (float): Current simulation time in seconds.
+
+        Returns:
+            can_bite (bool): True if Biting now is optimal.
+        """
+        if self.strategy['bite_time'] is not None:
+            return (self.rip_end - time >= self.strategy['bite_time'])
+        return self.can_bite_analytical(time)
+
     def can_bite_analytical(self, time):
         """Analytical alternative to the empirical bite_time parameter used for
         determining whether there is sufficient time left before Rip falls off
@@ -1498,6 +1514,10 @@ class Simulation():
         # Actual Energy cost is a bit lower than this because it is okay to
         # lose a few seconds of Rip uptime to gain a Bite.
         allowed_rip_downtime = self.calc_allowed_rip_downtime(time)
+
+        # Adjust downtime estimate to account for end of fight losses
+        allowed_rip_downtime = 22. * (1 - 1. / (1. + allowed_rip_downtime/22.))
+
         total_energy_cost -= 10 * allowed_rip_downtime
 
         # Then we simply recommend Biting now if the available Energy to do so
@@ -1626,12 +1646,11 @@ class Simulation():
         mangle_cost = self.player.mangle_cost
 
         bite_before_rip = (
-            self.rip_debuff and self.strategy['use_bite']
-            and (self.rip_end - time >= self.strategy['bite_time'])
-            # and self.can_bite_analytical(time)
+            (cp >= bite_cp) and self.rip_debuff and self.strategy['use_bite']
+            and self.can_bite(time)
         )
         bite_now = (
-            (bite_before_rip or bite_at_end) and (cp >= bite_cp)
+            (bite_before_rip or bite_at_end)
             and (not self.player.omen_proc)
         )
 

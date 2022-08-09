@@ -273,7 +273,211 @@ encounter_details = dbc.Col(
              ),
          ],
          style={'width': '75%', 'marginTop': '1.5%'}
-     )],
+     ),
+     html.Br(),
+     html.H5('Talents'),
+     dbc.Checklist(
+         options=[
+             {'label': 'Omen of Clarity', 'value': 'omen'},
+             {'label': 'Berserk', 'value': 'berserk'},
+             {'label': 'Primal Gore', 'value': 'primal_gore'},
+         ],
+         value=['berserk', 'primal_gore'], id='binary_talents'
+     ),
+     html.Br(),
+     html.Div([
+         html.Div(
+             'Feral Aggression:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+                 {'label': '3', 'value': 3},
+                 {'label': '4', 'value': 4},
+                 {'label': '5', 'value': 5},
+             ],
+             value=5, id='feral_aggression',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )]),
+     html.Div([
+         html.Div(
+             'Savage Fury:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+             ],
+             value=2, id='savage_fury',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )]),
+     html.Div([
+         html.Div(
+             'Protector of the Pack:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+                 {'label': '3', 'value': 3},
+             ],
+             value=2, id='potp',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )]),
+     html.Div([
+         html.Div(
+             'Improved Mangle:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+                 {'label': '3', 'value': 3},
+             ],
+             value='0', id='improved_mangle',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )]),
+     html.Div([
+         html.Div(
+             'Improved Mark of the Wild:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+             ],
+             value=1, id='imp_motw',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )]),
+     html.Div([
+         html.Div(
+             'Furor:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+                 {'label': '3', 'value': 3},
+                 {'label': '4', 'value': 4},
+                 {'label': '5', 'value': 5},
+             ],
+             value=4, id='furor',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )]),
+     html.Div([
+         html.Div(
+             'Naturalist:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+                 {'label': '3', 'value': 3},
+                 {'label': '4', 'value': 4},
+                 {'label': '5', 'value': 5},
+             ],
+             value=4, id='naturalist',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )]),
+     html.Div([
+         html.Div(
+             'Natural Shapeshifter:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+                 {'label': '3', 'value': 3},
+             ],
+             value='0', id='natural_shapeshifter',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )]),
+     html.Div([
+         html.Div(
+             'Intensity:',
+             style={
+                 'width': '35%', 'display': 'inline-block',
+                 'fontWeight': 'bold'
+             }
+         ),
+         dbc.Select(
+             options=[
+                 {'label': '0', 'value': 0},
+                 {'label': '1', 'value': 1},
+                 {'label': '2', 'value': 2},
+                 {'label': '3', 'value': 3},
+             ],
+             value='0', id='intensity',
+             style={
+                 'width': '20%', 'display': 'inline-block',
+                 'marginBottom': '2.5%', 'marginRight': '5%'
+             }
+         )])],
     width='auto',
     style={
         'marginLeft': '2.5%', 'marginBottom': '2.5%', 'marginRight': '-2.5%'
@@ -301,210 +505,6 @@ iteration_input = dbc.Col([
         style={'width': '50%'}
     ),
     html.Br(),
-    html.H5('Talents'),
-    dbc.Checklist(
-        options=[
-            {'label': 'Omen of Clarity', 'value': 'omen'},
-            {'label': 'Berserk', 'value': 'berserk'},
-            {'label': 'Primal Gore', 'value': 'primal_gore'},
-        ],
-        value=['berserk', 'primal_gore'], id='binary_talents'
-    ),
-    html.Br(),
-    html.Div([
-        html.Div(
-            'Feral Aggression:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-                {'label': '3', 'value': 3},
-                {'label': '4', 'value': 4},
-                {'label': '5', 'value': 5},
-            ],
-            value=5, id='feral_aggression',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Div([
-        html.Div(
-            'Savage Fury:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-            ],
-            value=2, id='savage_fury',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Div([
-        html.Div(
-            'Protector of the Pack:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-                {'label': '3', 'value': 3},
-            ],
-            value=2, id='potp',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Div([
-        html.Div(
-            'Improved Mangle:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-                {'label': '3', 'value': 3},
-            ],
-            value='0', id='improved_mangle',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Div([
-        html.Div(
-            'Improved Mark of the Wild:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-            ],
-            value=1, id='imp_motw',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Div([
-        html.Div(
-            'Furor:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-                {'label': '3', 'value': 3},
-                {'label': '4', 'value': 4},
-                {'label': '5', 'value': 5},
-            ],
-            value=4, id='furor',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Div([
-        html.Div(
-            'Naturalist:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-                {'label': '3', 'value': 3},
-                {'label': '4', 'value': 4},
-                {'label': '5', 'value': 5},
-            ],
-            value=4, id='naturalist',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Div([
-        html.Div(
-            'Natural Shapeshifter:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-                {'label': '3', 'value': 3},
-            ],
-            value='0', id='natural_shapeshifter',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Div([
-        html.Div(
-            'Intensity:',
-            style={
-                'width': '35%', 'display': 'inline-block',
-                'fontWeight': 'bold'
-            }
-        ),
-        dbc.Select(
-            options=[
-                {'label': '0', 'value': 0},
-                {'label': '1', 'value': 1},
-                {'label': '2', 'value': 2},
-                {'label': '3', 'value': 3},
-            ],
-            value='0', id='intensity',
-            style={
-                'width': '20%', 'display': 'inline-block',
-                'marginBottom': '2.5%', 'marginRight': '5%'
-            }
-        )]),
-    html.Br(),
     html.H5('Player Strategy'),
     dbc.InputGroup(
         [
@@ -520,7 +520,7 @@ iteration_input = dbc.Col([
                 value=5, id='rip_cp',
             ),
         ],
-        style={'width': '48%', 'marginBottom': '1.5%'}
+        style={'width': '55%', 'marginBottom': '1.5%'}
     ),
     dbc.InputGroup(
         [
@@ -537,7 +537,7 @@ iteration_input = dbc.Col([
                 value=5, id='bite_cp',
             ),
         ],
-        style={'width': '60%', 'marginBottom': '1.5%'}
+        style={'width': '65%', 'marginBottom': '1.5%'}
     ),
     dbc.InputGroup(
         [
@@ -552,21 +552,10 @@ iteration_input = dbc.Col([
         style={'width': '63%'},
     ),
     html.Br(),
-    dbc.Row([
-        dbc.Col(dbc.Checklist(
-            options=[{'label': " weave Ferocious Bite", 'value': 'bite'}],
-            value=['bite'], id='use_biteweave',
-        ), width='auto'),
-        dbc.Col('with', width='auto', id='biteweave_text_1'),
-        dbc.Col(dbc.Input(
-            type='number', value=10, id='bite_time', min=0.0, step=0.1,
-            style={'marginTop': '-3%', 'marginBottom': '7%', 'width': '40%'},
-        ), width='auto'),
-        dbc.Col(
-            'seconds left on Rip', width='auto', style={'marginLeft': '-15%'},
-            id='biteweave_text_2'
-        )
-    ],),
+    dbc.Checklist(
+        options=[{'label': ' use Ferocious Bite', 'value': 'bite'}],
+        value=['bite'], id='use_biteweave'
+    ),
     dbc.Collapse(
         [
             dbc.InputGroup(
@@ -583,7 +572,48 @@ iteration_input = dbc.Col([
                 style={
                     'width': '65%', 'marginBottom': '1%', 'marginLeft': '5%'
                 }
-            )
+            ),
+            dbc.InputGroup(
+                [
+                    dbc.InputGroupAddon(
+                        'Bite usage model:', addon_type='prepend'
+                    ),
+                    dbc.Select(
+                        options=[
+                            {'label': 'analytical', 'value': 'analytical'},
+                            {'label': 'empirical', 'value': 'empirical'}
+                        ],
+                        value='analytical', id='bite_model'
+                    ),
+                ],
+                style={
+                    'width': '65%', 'marginBottom': '1%', 'marginLeft': '5%'
+                }
+            ),
+            dbc.Collapse(
+                [
+                    dbc.InputGroup(
+                        [
+                            dbc.InputGroupAddon(
+                                'Bite with',
+                                addon_type='prepend'
+                            ),
+                            dbc.Input(
+                                type='number', value=10, id='bite_time',
+                                min=0, step=1
+                            ),
+                            dbc.InputGroupAddon(
+                                'seconds left on Rip', addon_type='append'
+                            )
+                        ],
+                        style={
+                            'width': '65%', 'marginBottom': '1%',
+                            'marginLeft': '5%'
+                        }
+                    ),
+                ],
+                id='empirical_options', is_open=True
+            ),
         ],
         id='biteweave_options', is_open=True
     ),
@@ -1576,6 +1606,7 @@ def plot_new_trajectory(sim, show_whites):
     State('use_rake', 'value'),
     State('mangle_spam', 'value'),
     State('use_biteweave', 'value'),
+    State('bite_model', 'value'),
     State('bite_time', 'value'),
     State('bear_mangle', 'value'),
     State('prepop_berserk', 'value'),
@@ -1595,8 +1626,8 @@ def compute(
         binary_talents, feral_aggression, savage_fury, potp, improved_mangle,
         furor, naturalist, natural_shapeshifter, intensity, fight_length,
         boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
-        use_rake, mangle_spam, use_biteweave, bite_time, bear_mangle,
-        prepop_berserk, preproc_omen, bearweave, maul_rage_thresh,
+        use_rake, mangle_spam, use_biteweave, bite_model, bite_time,
+        bear_mangle, prepop_berserk, preproc_omen, bearweave, maul_rage_thresh,
         berserk_bite_thresh, num_replicates, latency, calc_mana_weights,
         epic_gems, show_whites
 ):
@@ -1734,6 +1765,7 @@ def compute(
 
     # Create Simulation object based on specified parameters
     bite = bool(use_biteweave)
+    bite_time = None if bite_model == 'analytical' else bite_time
     rip_combos = int(rip_cp)
 
     if 'lust' in cooldowns:
@@ -1850,13 +1882,15 @@ def compute(
     Output('biteweave_options', 'is_open'),
     Output('berserk_options', 'is_open'),
     Output('omen_options', 'is_open'),
+    Output('empirical_options', 'is_open'),
     Input('bearweave', 'value'),
     Input('use_biteweave', 'value'),
+    Input('bite_model', 'value'),
     Input('binary_talents', 'value'))
-def disable_options(bearweave, biteweave, binary_talents):
+def disable_options(bearweave, biteweave, bite_model, binary_talents):
     return (
         bool(bearweave), bool(biteweave), 'berserk' in binary_talents,
-        'omen' in binary_talents
+        'omen' in binary_talents, bite_model == 'empirical'
     )
 
 
