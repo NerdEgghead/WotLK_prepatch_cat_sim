@@ -222,11 +222,11 @@ class Player():
             crit_chance, armor_pen_rating, swing_timer, mana, intellect,
             spirit, mp5, jow=False, pot=True, cheap_pot=False, rune=True,
             t4_bonus=False, t6_2p=False, t6_4p=False, wolfshead=True,
-            meta=False, bonus_damage=0, shred_bonus=0, debuff_ap=0,
-            multiplier=1.1, omen=True, primal_gore=True, feral_aggression=0,
-            savage_fury=2, furor=3, natural_shapeshifter=3, intensity=3,
-            potp=2, improved_mangle=0, weapon_speed=3.0, proc_trinkets=[],
-            log=False
+            meta=False, bonus_damage=0, shred_bonus=0, rip_bonus=0,
+            debuff_ap=0, multiplier=1.1, omen=True, primal_gore=True,
+            feral_aggression=0, savage_fury=2, furor=3, natural_shapeshifter=3,
+            intensity=3, potp=2, improved_mangle=0, weapon_speed=3.0,
+            proc_trinkets=[], log=False
     ):
         """Initialize player with key damage parameters.
 
@@ -265,6 +265,8 @@ class Player():
                 Root or Dense Weightstone. Defaults to 0.
             shred_bonus (int): Bonus damage to Shred ability from Idols and set
                 bonuses. Defaults to 0.
+            rip_bonus (int): Bonus periodic damage to Rip (per CP) from Idols
+                and set bonuses. Defaults to 0.
             debuff_ap (int): Bonus Attack Power from boss debuffs such as
                 Improved Hunter's Mark or Expose Weakness. Treated differently
                 from "normal" AP because it does not boost abilities with
@@ -319,6 +321,7 @@ class Player():
         self.t4_bonus = t4_bonus
         self.bonus_damage = bonus_damage
         self.shred_bonus = shred_bonus
+        self.rip_bonus = rip_bonus
         self._mangle_cost = 40 - 5 * t6_2p - 2 * improved_mangle
         self.t6_bonus = t6_4p
         self.wolfshead = wolfshead
@@ -457,7 +460,8 @@ class Player():
         self.rake_tick = rake_multi * (138 + 0.06 * self.attack_power)
         rip_multiplier = damage_multiplier * (1 + 0.15 * self.t6_bonus)
         self.rip_tick = {
-            i: (24 + 47*i + 0.01*i*ap) * rip_multiplier for i in range(1,6)
+            i: (24 + 47*i + 0.01*i*ap + self.rip_bonus*i) * rip_multiplier
+            for i in range(1,6)
         }
 
         # Bearweave damage calculations
@@ -1768,11 +1772,13 @@ class Simulation():
             # Rage to Mangle or Maul, or (c) we don't have enough time or
             # Energy leeway to spend an additional GCD in Dire Bear Form.
             shift_now = (
-                (self.player.rage < 10)
+                (self.player.rage < 10) or
                 # or (time - self.player.last_shift > 3 - 1e-9)
-                or (energy + 15 + 10 * self.latency > furor_cap)
+                (energy + 15 + 10 * self.latency > furor_cap)
                 or (rip_refresh_pending and (self.rip_end < time + 3.0))
             )
+            # powerbear_now = (not shift_now) and (self.player.rage < 10)
+            powerbear_now = False
 
             if not self.strategy['lacerate_prio']:
                 shift_now = shift_now or self.player.omen_proc
@@ -1790,6 +1796,14 @@ class Simulation():
                 return self.lacerate(time)
             elif shift_now:
                 self.player.ready_to_shift = True
+            elif powerbear_now:
+                # As a hack to make bear powershifts work, manually set state
+                # to Cat Form and call self.player.shift() directly. Only thing
+                # we lose by doing this is handling latency properly.
+                last_shift = self.player.last_shift
+                self.player.cat_form = True
+                self.player.shift(time)
+                self.player.last_shift = last_shift
             elif lacerate_now and (self.player.rage >= 13):
                 return self.lacerate(time)
             elif (self.player.rage >= 15) and (self.player.mangle_cd < 1e-9):

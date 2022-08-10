@@ -110,6 +110,7 @@ stat_input = dbc.Col([
             {'label': 'Everbloom Idol', 'value': 'everbloom'},
             {'label': 'Idol of Terror', 'value': 'idol_of_terror'},
             {'label': 'Idol of the White Stag', 'value': 'stag_idol'},
+            {'label': 'Idol of Feral Shadows', 'value': 'rip_idol'},
             {'label': '2-piece Tier 4 bonus', 'value': 't4_bonus'},
             {'label': '4-piece Tier 5 bonus', 'value': 't5_bonus'},
             {'label': '2-piece Tier 6 bonus', 'value': 't6_2p'},
@@ -1312,6 +1313,7 @@ def create_player(
         * (1 + 0.03 * ('sanc_aura' in other_buffs))
     )
     shred_bonus = 88 * ('everbloom' in bonuses) + 75 * ('t5_bonus' in bonuses)
+    rip_bonus = 7 * ('rip_idol' in bonuses) 
 
     # Create and return a corresponding Player object
     player = ccs.Player(
@@ -1332,7 +1334,7 @@ def create_player(
         t6_4p='t6_4p' in bonuses, wolfshead='wolfshead' in bonuses,
         meta='meta' in bonuses, rune='rune' in cooldowns,
         pot=potion in ['super', 'fel'], cheap_pot=(potion == 'super'),
-        shred_bonus=shred_bonus, debuff_ap=debuff_ap
+        shred_bonus=shred_bonus, rip_bonus=rip_bonus, debuff_ap=debuff_ap
     )
     stat_mod = (1 + 0.1 * kings) * 1.06 * (1 + 0.01 * imp_motw)
     return player, ap_mod, stat_mod, haste_multiplier
