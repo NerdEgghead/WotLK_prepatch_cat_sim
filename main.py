@@ -662,18 +662,6 @@ iteration_input = dbc.Col([
     ),
     dbc.Collapse(
         [
-            dbc.InputGroup(
-                [
-                    dbc.InputGroupAddon(
-                        'Minimum Rage for initial Maul:', addon_type='prepend'
-                    ),
-                    dbc.Input(
-                        value=25, min=10, step=1, type='number',
-                        id='maul_rage_thresh'
-                    )
-                ],
-                style={'width': '55%', 'marginTop': '1%', 'marginLeft': '5%'}
-            ),
             dbc.Checklist(
                 options=[{
                     'label': ' prioritize Lacerate maintenance over Mangle',
@@ -1650,7 +1638,6 @@ def plot_new_trajectory(sim, show_whites):
     State('prepop_berserk', 'value'),
     State('preproc_omen', 'value'),
     State('bearweave', 'value'),
-    State('maul_rage_thresh', 'value'),
     State('berserk_bite_thresh', 'value'),
     State('lacerate_prio', 'value'),
     State('lacerate_time', 'value'),
@@ -1667,7 +1654,7 @@ def compute(
         furor, naturalist, natural_shapeshifter, intensity, fight_length,
         boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
         use_rake, mangle_spam, use_biteweave, bite_model, bite_time,
-        bear_mangle, prepop_berserk, preproc_omen, bearweave, maul_rage_thresh,
+        bear_mangle, prepop_berserk, preproc_omen, bearweave,
         berserk_bite_thresh, lacerate_prio, lacerate_time, num_replicates,
         latency, calc_mana_weights, epic_gems, show_whites
 ):
@@ -1877,8 +1864,7 @@ def compute(
         bite_time=bite_time, bear_mangle=bool(bear_mangle),
         use_berserk='berserk' in binary_talents,
         prepop_berserk=bool(prepop_berserk), preproc_omen=bool(preproc_omen),
-        bearweave=bool(bearweave), maul_rage_thresh=maul_rage_thresh,
-        berserk_bite_thresh=berserk_bite_thresh,
+        bearweave=bool(bearweave), berserk_bite_thresh=berserk_bite_thresh,
         lacerate_prio=bool(lacerate_prio), lacerate_time=lacerate_time,
         trinkets=trinket_list, haste_multiplier=haste_multiplier,
         hot_uptime=hot_uptime / 100.

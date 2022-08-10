@@ -1194,7 +1194,6 @@ class Simulation():
         'prepop_berserk': False,
         'preproc_omen': False,
         'bearweave': False,
-        'maul_rage_thresh': 25,
         'berserk_bite_thresh': 100,
         'lacerate_prio': False,
         'lacerate_time': 10.0,
@@ -2239,41 +2238,60 @@ class Simulation():
                     # Dire Bear Form once the GCD expires, then only Maul if we
                     # will be left with enough Rage to cast Mangle or Lacerate
                     # on that global.
-                    if time - self.player.last_shift <= 1.5:
-                        maul_rage_thresh = self.strategy['maul_rage_thresh']
+                    furor_cap = min(20 * self.player.furor, 85)
+                    rip_refresh_pending = (
+                        self.rip_debuff
+                        and (self.rip_end < self.fight_length - 10)
+                    )
+                    energy_leeway = (
+                        furor_cap - 15
+                        - 10 * (self.player.gcd + self.latency)
+                    )
+                    shift_next = (self.player.energy > energy_leeway)
+
+                    if rip_refresh_pending:
+                        shift_next = shift_next or (
+                            self.rip_end < time + self.player.gcd + 3.0
+                        )
+
+                    if self.strategy['lacerate_prio']:
+                        lacerate_leeway = (
+                            self.player.gcd + self.strategy['lacerate_time']
+                        )
+                        lacerate_next = (
+                            (not self.lacerate_debuff)
+                            or (self.lacerate_stacks < 5)
+                            or (self.lacerate_end - time <= lacerate_leeway)
+                        )
+                        emergency_leeway = (
+                            self.player.gcd + 3.0 + 2 * self.latency
+                        )
+                        emergency_lacerate_next = (
+                            self.lacerate_debuff and
+                            (self.lacerate_end - time <= emergency_leeway)
+                        )
+                        mangle_next = (not lacerate_next) and (
+                            (not self.mangle_debuff) 
+                            or (self.mangle_end < time + self.player.gcd + 3.0)
+                        )
                     else:
-                        furor_cap = min(20 * self.player.furor, 85)
-                        rip_refresh_pending = (
-                            self.rip_debuff
-                            and (self.rip_end < self.fight_length - 10)
-                        )
-                        energy_leeway = (
-                            furor_cap - 15
-                            - 10 * (self.player.gcd + self.latency)
-                        )
-                        shift_next = (self.player.energy > energy_leeway)
-
-                        if rip_refresh_pending:
-                            shift_next = shift_next or (
-                                self.rip_end < time + self.player.gcd + 3.0
-                            )
-
-                        mangle_next = (not self.mangle_debuff) or (
-                            self.mangle_end < time + self.player.gcd + 3.0
-                        )
+                        mangle_next = (self.player.mangle_cd < self.player.gcd)
                         lacerate_next = self.lacerate_debuff and (
                             (self.lacerate_stacks < 5) or
                             (self.lacerate_end < time + self.player.gcd + 4.5)
                         )
+                        emergency_lacerate_next = False
 
-                        if shift_next:
-                            maul_rage_thresh = 10
-                        elif mangle_next:
-                            maul_rage_thresh = 25
-                        elif lacerate_next:
-                            maul_rage_thresh = 23
-                        else:
-                            maul_rage_thresh = 10
+                    if emergency_lacerate_next:
+                        maul_rage_thresh = 23
+                    elif shift_next:
+                        maul_rage_thresh = 10
+                    elif mangle_next:
+                        maul_rage_thresh = 25
+                    elif lacerate_next:
+                        maul_rage_thresh = 23
+                    else:
+                        maul_rage_thresh = 10
 
                     if self.player.rage >= maul_rage_thresh:
                         dmg_done += self.player.maul()
