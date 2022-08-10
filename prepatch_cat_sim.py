@@ -577,7 +577,7 @@ class Player():
 
         proc_roll = np.random.rand()
 
-        if proc_roll < 0.5:
+        if proc_roll < 0.25:
             self.mana = min(self.mana + 70, self.mana_pool)
 
     def check_t4_proc(self):
@@ -1610,6 +1610,9 @@ class Simulation():
         # the input delay is over.
         if self.player.ready_to_shift:
             self.player.shift(time)
+
+            if (self.player.mana < 0) and (not self.time_to_oom):
+                self.time_to_oom = time
 
             # Swing timer only updates on the next swing after we shift
             swing_fac = 1/2.5 if self.player.cat_form else 2.5

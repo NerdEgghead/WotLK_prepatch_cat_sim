@@ -183,8 +183,10 @@ buffs_1 = dbc.Col(
                  'label': 'Improved Moonkin Form / Swift Retribution',
                  'value': 'minor_haste'
              },
+             {'label': 'Mana Replenishment', 'value': 'replenishment'},
          ],
-         value=['sanc_aura', 'major_haste', 'minor_haste'], id='other_buffs'
+         value=['sanc_aura', 'major_haste', 'minor_haste', 'replenishment'],
+         id='other_buffs'
      ),
      dbc.InputGroup(
          [
@@ -1299,7 +1301,9 @@ def create_player(
         + (28 * ('be_chain' in other_buffs) + 40 * bool(raven_idol)) / 22.1
     )
     encounter_hit = buffed_hit
-    encounter_mp5 = buffed_mp5
+    encounter_mp5 = (
+        buffed_mp5 + 0.01 * buffed_mana_pool * ('replenishment' in other_buffs)
+    )
 
     # Calculate bonus damage parameters
     encounter_weapon_damage = buffed_weapon_damage
