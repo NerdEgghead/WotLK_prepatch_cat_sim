@@ -2218,10 +2218,45 @@ class Simulation():
                 if self.player.cat_form:
                     dmg_done += self.player.swing()
                 else:
-                    if time - self.player.last_shift > 1.5:
-                        maul_rage_thresh = 10
-                    else:
+                    # If we will have enough time and Energy leeway to stay in
+                    # Dire Bear Form once the GCD expires, then only Maul if we
+                    # will be left with enough Rage to cast Mangle or Lacerate
+                    # on that global.
+                    if time - self.player.last_shift <= 1.5:
                         maul_rage_thresh = self.strategy['maul_rage_thresh']
+                    else:
+                        furor_cap = min(20 * self.player.furor, 85)
+                        rip_refresh_pending = (
+                            self.rip_debuff
+                            and (self.rip_end < self.fight_length - 10)
+                        )
+                        energy_leeway = (
+                            furor_cap - 15
+                            - 10 * (self.player.gcd + self.latency)
+                        )
+                        shift_next = (self.player.energy > energy_leeway)
+
+                        if rip_refresh_pending:
+                            shift_next = shift_next or (
+                                self.rip_end < time + self.player.gcd + 3.0
+                            )
+
+                        mangle_next = (not self.mangle_debuff) or (
+                            self.mangle_end < time + self.player.gcd + 3.0
+                        )
+                        lacerate_next = self.lacerate_debuff and (
+                            (self.lacerate_stacks < 5) or
+                            (self.lacerate_end < time + self.player.gcd + 4.5)
+                        )
+
+                        if shift_next:
+                            maul_rage_thresh = 10
+                        elif mangle_next:
+                            maul_rage_thresh = 25
+                        elif lacerate_next:
+                            maul_rage_thresh = 23
+                        else:
+                            maul_rage_thresh = 10
 
                     if self.player.rage >= maul_rage_thresh:
                         dmg_done += self.player.maul()
