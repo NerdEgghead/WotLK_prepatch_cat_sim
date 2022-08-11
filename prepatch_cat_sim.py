@@ -164,7 +164,8 @@ def gen_import_link(
     link += '&31=1&33=1.2&4=%.3f' % (2 * multiplier)
 
     # Agility
-    agi_weight = multiplier * (1 + stat_weights['1% crit'] / 40)
+    # agi_weight = multiplier * (1 + stat_weights['1% crit'] / 40)
+    agi_weight = stat_weights['1 Agility']
     link += '&0=%.2f' % agi_weight
 
     # Hit Rating and Expertise Rating
@@ -2570,16 +2571,26 @@ class Simulation():
         original_value = getattr(self.player, param)
         setattr(self.player, param, original_value + increment)
 
+        # For Agility increments, also augment Attack Power and Crit
+        if param == 'agility':
+            self.player.attack_power += self.player.ap_mod * increment
+            self.player.crit_chance += increment / 40. / 100.
+
         # Calculate DPS
         dps_vals = self.run_replicates(num_replicates)
         avg_dps = np.mean(dps_vals)
 
         # Reset the stat to original value
         setattr(self.player, param, original_value)
+
+        if param == 'agility':
+            self.player.attack_power -= self.player.ap_mod * increment
+            self.player.crit_chance -= increment / 40. / 100.
+
         return avg_dps - base_dps
 
     def calc_stat_weights(
-            self, num_replicates, base_dps=None, unleashed_rage=False
+            self, num_replicates, base_dps=None, agi_mod=1.0
     ):
         """Calculate performance derivatives for AP, hit, crit, and haste.
 
@@ -2588,8 +2599,8 @@ class Simulation():
             base_dps (float): If provided, use a pre-calculated value for the
                 base DPS before stat increments. Defaults to calculating base
                 DPS from scratch.
-            unleashed_rage (bool): Whether the Unleashed Rage party buff should
-                be factored into the computed AP weight. Defaults False.
+            agi_mod (float): Multiplier for primary attributes to use for
+                determining Agility weight. Defaults to 1.0
 
         Returns:
             dps_deltas (dict): Dictionary containing DPS increase from 1 AP,
@@ -2612,9 +2623,8 @@ class Simulation():
 
         # For AP, we will use an increment of +80 AP. We also scale the
         # increase by a factor of 1.1 to account for HotW
-        ap_mod = 1.1 * (1 + 0.1 * unleashed_rage)
-        dps_deltas['1 AP'] = ap_mod * 1.0/80.0 * self.calc_deriv(
-            num_replicates, 'attack_power', 80, base_dps
+        dps_deltas['1 AP'] = 1.0/80.0 * self.calc_deriv(
+            num_replicates, 'attack_power', 80 * self.player.ap_mod, base_dps
         )
 
         # For hit and crit, we will use an increment of 2%.
@@ -2629,6 +2639,11 @@ class Simulation():
         # Crit is a simple increment
         dps_deltas['1% crit'] = 0.5 * self.calc_deriv(
             num_replicates, 'crit_chance', 0.02, base_dps
+        )
+
+        # Due to bearweaving, separate Agility weight calculation is needed
+        dps_deltas['1 Agility'] = 1.0/40.0 * self.calc_deriv(
+            num_replicates, 'agility', 40 * agi_mod, base_dps
         )
 
         # For haste we will use an increment of 4%. (Note that this is 4% in

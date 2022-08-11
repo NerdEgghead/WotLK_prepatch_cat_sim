@@ -1505,8 +1505,9 @@ def calc_weights(
     weights_table = []
 
     # Calculate DPS increases and weights
+    stat_multiplier = (1 + 0.1 * kings) * 1.06 * (1 + 0.01 * imp_motw)
     dps_deltas, stat_weights = sim.calc_stat_weights(
-        num_replicates, base_dps=avg_dps, unleashed_rage=unleashed_rage
+        num_replicates, base_dps=avg_dps, agi_mod=stat_multiplier
     )
 
     # Parse results
@@ -1524,7 +1525,6 @@ def calc_weights(
         ]))
 
     # Generate 70upgrades import link for raw stats
-    stat_multiplier = (1 + 0.1 * kings) * 1.06 * (1 + 0.01 * imp_motw)
     url = ccs.gen_import_link(
         stat_weights, multiplier=stat_multiplier, epic_gems=epic_gems
     )
