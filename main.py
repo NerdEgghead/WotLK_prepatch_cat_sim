@@ -667,7 +667,7 @@ iteration_input = dbc.Col([
                     'label': ' prioritize Lacerate maintenance over Mangle',
                     'value': 'lacerate_prio'
                 }],
-                value=[], id='lacerate_prio',
+                value=['lacerate_prio'], id='lacerate_prio',
                 style={'marginTop': '1%', 'marginLeft': '5%'}
             ),
             dbc.Collapse(
@@ -693,6 +693,14 @@ iteration_input = dbc.Col([
                     ),
                 ],
                 id='lacerate_options', is_open=True
+            ),
+            dbc.Checklist(
+                options=[{
+                    'label': ' allow bear powershifts when Rage starved',
+                    'value': 'powerbear'
+                }],
+                value=[], id='powerbear',
+                style={'marginTop': '1%', 'marginLeft': '5%'}
             ),
         ],
         id='bearweave_options', is_open=True
@@ -1641,6 +1649,7 @@ def plot_new_trajectory(sim, show_whites):
     State('berserk_bite_thresh', 'value'),
     State('lacerate_prio', 'value'),
     State('lacerate_time', 'value'),
+    State('powerbear', 'value'),
     State('num_replicates', 'value'),
     State('latency', 'value'),
     State('calc_mana_weights', 'checked'),
@@ -1655,8 +1664,8 @@ def compute(
         boss_armor, boss_debuffs, cooldowns, rip_cp, bite_cp, cd_delay,
         use_rake, mangle_spam, use_biteweave, bite_model, bite_time,
         bear_mangle, prepop_berserk, preproc_omen, bearweave,
-        berserk_bite_thresh, lacerate_prio, lacerate_time, num_replicates,
-        latency, calc_mana_weights, epic_gems, show_whites
+        berserk_bite_thresh, lacerate_prio, lacerate_time, powerbear,
+        num_replicates, latency, calc_mana_weights, epic_gems, show_whites
 ):
     ctx = dash.callback_context
 
@@ -1866,8 +1875,8 @@ def compute(
         prepop_berserk=bool(prepop_berserk), preproc_omen=bool(preproc_omen),
         bearweave=bool(bearweave), berserk_bite_thresh=berserk_bite_thresh,
         lacerate_prio=bool(lacerate_prio), lacerate_time=lacerate_time,
-        trinkets=trinket_list, haste_multiplier=haste_multiplier,
-        hot_uptime=hot_uptime / 100.
+        powerbear=bool(powerbear), trinkets=trinket_list,
+        haste_multiplier=haste_multiplier, hot_uptime=hot_uptime / 100.
     )
     sim.set_active_debuffs(boss_debuffs)
     player.calc_damage_params(**sim.params)

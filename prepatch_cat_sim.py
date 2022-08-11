@@ -532,7 +532,7 @@ class Player():
 
         for cast_type in [
             'Melee', 'Mangle (Cat)', 'Shred', 'Rip', 'Rake', 'Ferocious Bite',
-            'Shift', 'Maul', 'Mangle (Bear)', 'Lacerate'
+            'Shift (Bear)', 'Maul', 'Mangle (Bear)', 'Lacerate', 'Shift (Cat)'
         ]:
             self.dmg_breakdown[cast_type] = {'casts': 0, 'damage': 0.0}
 
@@ -1042,18 +1042,26 @@ class Player():
 
         return damage_per_tick, not miss
 
-    def shift(self, time):
-        """Execute a powershift.
+    def shift(self, time, powershift=False):
+        """Execute a shift between Cat Form and Dire Bear Form.
 
         Arguments:
             time (float): Time at which the shift is executed, in seconds. Used
                 for determining the five second rule.
+            powershift (bool): If True, execute a powershift within the same
+                form, rather than shifting between forms. Defaults False.
         """
         log_str = ''
+
+        # Simple hack to accomodate same-form powershifts is to invert the
+        # cat_form variable prior to executing a normal cat-to-bear shift.
+        if powershift:
+            self.cat_form = not self.cat_form
 
         if self.cat_form:
             self.cat_form = False
             self.rage = 10 * (np.random.rand() < 0.2 * self.furor)
+            cast_name = 'Shift (Bear)'
 
             # Bundle Enrage with the bear shift if available
             if self.enrage_cd < 1e-9:
@@ -1067,9 +1075,10 @@ class Player():
                 min(self.energy, 20 * self.furor) + 20 * self.wolfshead
             )
             self.enrage = False
+            cast_name = 'Shift (Cat)'
 
         self.gcd = 1.5
-        self.dmg_breakdown['Shift']['casts'] += 1
+        self.dmg_breakdown[cast_name]['casts'] += 1
         self.mana -= self.shift_cost
         self.five_second_rule = True
         self.last_shift = time
@@ -1084,8 +1093,11 @@ class Player():
             log_str = 'use Mana Potion'
 
         if self.log:
+            if powershift:
+                cast_name = 'Powers' + cast_name[1:]
+
             self.combat_log = [
-                'shift', log_str, '%.1f' % self.energy,
+                cast_name, log_str, '%.1f' % self.energy,
                 '%d' % self.combo_points, '%d' % self.mana, '%d' % self.rage
             ]
 
@@ -1197,6 +1209,7 @@ class Simulation():
         'berserk_bite_thresh': 100,
         'lacerate_prio': False,
         'lacerate_time': 10.0,
+        'powerbear': False,
     }
 
     def __init__(
@@ -1771,13 +1784,15 @@ class Simulation():
             # Rage to Mangle or Maul, or (c) we don't have enough time or
             # Energy leeway to spend an additional GCD in Dire Bear Form.
             shift_now = (
-                (self.player.rage < 10) or
-                # or (time - self.player.last_shift > 3 - 1e-9)
                 (energy + 15 + 10 * self.latency > furor_cap)
                 or (rip_refresh_pending and (self.rip_end < time + 3.0))
             )
-            # powerbear_now = (not shift_now) and (self.player.rage < 10)
-            powerbear_now = False
+
+            if self.strategy['powerbear']:
+                powerbear_now = (not shift_now) and (self.player.rage < 10)
+            else:
+                powerbear_now = False
+                shift_now = shift_now or (self.player.rage < 10)
 
             if not self.strategy['lacerate_prio']:
                 shift_now = shift_now or self.player.omen_proc
@@ -1796,13 +1811,7 @@ class Simulation():
             elif shift_now:
                 self.player.ready_to_shift = True
             elif powerbear_now:
-                # As a hack to make bear powershifts work, manually set state
-                # to Cat Form and call self.player.shift() directly. Only thing
-                # we lose by doing this is handling latency properly.
-                last_shift = self.player.last_shift
-                self.player.cat_form = True
-                self.player.shift(time)
-                self.player.last_shift = last_shift
+                self.player.shift(time, powershift=True)
             elif lacerate_now and (self.player.rage >= 13):
                 return self.lacerate(time)
             elif (self.player.rage >= 15) and (self.player.mangle_cd < 1e-9):
